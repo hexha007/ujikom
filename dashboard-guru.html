@@ -1,0 +1,1595 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Presensi Siswa — Portal Guru</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=20261001_10">
+<link rel="stylesheet" href="assets/chat-hub.css?v=20261029_06">
+<link rel="stylesheet" href="assets/ceklis-popup.css?v=20261029_08">
+<style>
+  :root {
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-heading: 'Space Grotesk', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+  * { font-family: var(--font-sans); }
+  h1, h2, h3, h4, .user-info h1, .view-tab-btn, .btn-profile-header, .stat-value, .stat-label, .jam-banner-title { font-family: var(--font-heading); }
+  .mono, .rfid-tag, .jam-digital, code, pre { font-family: var(--font-mono); }
+  .badge-role-guru {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #e0e7ff;
+    color: #4338ca;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .counter-badge {
+    background: #ef4444;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 2px 7px;
+    border-radius: 9999px;
+    margin-left: 6px;
+  }
+  .jam-banner-guru {
+    background: linear-gradient(135deg, #eef2ff, #e0e7ff);
+    border: 1px solid #c7d2fe;
+    border-radius: 16px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .jam-banner-title {
+    font-size: 15px;
+    font-weight: 800;
+    color: #312e81;
+  }
+  .jam-banner-sub {
+    font-size: 13px;
+    color: #4f46e5;
+    margin-top: 3px;
+  }
+  .student-grid-guru {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+    margin-top: 12px;
+  }
+  .card-siswa-guru {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 14px 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .card-siswa-guru:hover {
+    transform: translateY(-2px);
+    border-color: #cbd5e1;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
+  }
+  .card-siswa-guru.hadir {
+    border-left: 4px solid #10b981;
+    background: #ffffff;
+  }
+  .card-siswa-guru.izin-sakit {
+    border-left: 4px solid #8b5cf6;
+    background: #ffffff;
+  }
+  .card-siswa-guru.belum {
+    border-left: 4px solid #f43f5e;
+    background: #ffffff;
+  }
+  .badge-rfid-locked {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #f0fdf4;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .btn-mini-action {
+    padding: 6px 10px;
+    font-size: 11.5px;
+    font-weight: 700;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-mini-hadir {
+    background: #10b981;
+    color: white;
+  }
+  .btn-mini-hadir:hover { background: #059669; }
+  .btn-mini-izin {
+    background: #f59e0b;
+    color: white;
+  }
+  .btn-mini-izin:hover { background: #d97706; }
+
+  /* Izin Cards */
+  .card-izin-guru {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+  }
+  .card-izin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+  }
+  .status-tag {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 8px;
+    text-transform: capitalize;
+  }
+  .status-tag.pending { background: #fef3c7; color: #b45309; }
+  .status-tag.disetujui { background: #ecfdf5; color: #065f46; }
+  .status-tag.ditolak { background: #fef2f2; color: #991b1b; }
+
+  /* Modal preview */
+  .modal-preview {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-preview.show { display: flex; }
+  .modal-preview-content {
+    background: #fff;
+    border-radius: 20px;
+    max-width: 540px;
+    width: 100%;
+    padding: 24px;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+  }
+
+  /* Modern Responsive Stats Grid for Teacher Portal */
+  .guru-stats-grid, .stats-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 16px !important;
+    margin-bottom: 24px !important;
+  }
+  @media (max-width: 860px) {
+    .guru-stats-grid, .stats-grid {
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
+    }
+  }
+  .guru-stat-card, .stat-card {
+    border-radius: 18px !important;
+    padding: 18px 20px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 16px !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+  }
+  .guru-stat-card:hover, .stat-card:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.06) !important;
+  }
+  .guru-stat-card.hadir {
+    background: #f0fdf4 !important;
+    border: 1.5px solid #bbf7d0 !important;
+    border-left: 6px solid #10b981 !important;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.08) !important;
+  }
+  .guru-stat-card.izin {
+    background: #fffbeb !important;
+    border: 1.5px solid #fde68a !important;
+    border-left: 6px solid #f59e0b !important;
+    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.08) !important;
+  }
+  .guru-stat-card.belum {
+    background: #fef2f2 !important;
+    border: 1.5px solid #fecaca !important;
+    border-left: 6px solid #ef4444 !important;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.08) !important;
+  }
+  .btn-filter-chip {
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1.5px solid #cbd5e1;
+    background: #fff;
+    color: #475569;
+  }
+  .btn-filter-chip:hover {
+    border-color: #94a3b8;
+    color: #0f172a;
+  }
+  .btn-filter-chip.active {
+    border-color: #4f46e5 !important;
+    background: #4f46e5 !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(79, 70, 229, 0.2) !important;
+  }
+  .toast-guru-float {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    padding: 12px 20px;
+    border-radius: 14px;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #fff;
+    background: #0f172a;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    display: none;
+    align-items: center;
+    gap: 10px;
+    animation: toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+
+  /* NFC Radar Pulse Wave Animations & Sleek Minimalist Modal */
+  @keyframes nfcPulseWave {
+    0% {
+      transform: scale(0.65);
+      opacity: 0.8;
+      border-color: rgba(99, 102, 241, 0.4);
+    }
+    50% {
+      opacity: 0.35;
+    }
+    100% {
+      transform: scale(2.05);
+      opacity: 0;
+      border-color: rgba(99, 102, 241, 0.05);
+    }
+  }
+  @keyframes pulseDot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.85); }
+  }
+  .nfc-radar-container {
+    position: relative;
+    width: 150px;
+    height: 150px;
+    margin: 0 auto 20px auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .nfc-radar-guide {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px dashed rgba(203, 213, 225, 0.65);
+    pointer-events: none;
+  }
+  .nfc-radar-guide.guide-1 {
+    width: 110px;
+    height: 110px;
+  }
+  .nfc-radar-guide.guide-2 {
+    width: 146px;
+    height: 146px;
+  }
+  .nfc-wave {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 1.5px solid rgba(99, 102, 241, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    animation: nfcPulseWave 2.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+  }
+  .nfc-wave.wave-2 { animation-delay: 0.8s; }
+  .nfc-wave.wave-3 { animation-delay: 1.6s; }
+  .nfc-center-circle {
+    position: relative;
+    z-index: 2;
+    width: 74px;
+    height: 74px;
+    border-radius: 50%;
+    background: #0f172a;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.1) inset, 0 0 0 6px rgba(99, 102, 241, 0.08);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .modal-nfc-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .modal-nfc-overlay.show {
+    display: flex !important;
+  }
+  .modal-nfc-card {
+    background: #ffffff;
+    border-radius: 24px;
+    max-width: 440px;
+    width: 100%;
+    padding: 28px 24px;
+    box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.04);
+    border: 1px solid #e2e8f0;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  #selectKelasWalasPilihan:disabled {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    background-image: none !important;
+    background-color: #f1f5f9 !important;
+    border: 1.5px solid #cbd5e1 !important;
+    color: #0f172a !important;
+    cursor: default !important;
+    padding: 10px 16px !important;
+    pointer-events: none;
+    user-select: none;
+    box-shadow: none !important;
+  }
+
+  /* ===================================================================
+     ERGONOMIC NAVBAR GURU OVERRIDE (R2: ANTI-OVERFLOW & SPASI LEGA)
+     =================================================================== */
+  .dashboard-container {
+    max-width: 1240px !important;
+  }
+  
+  .view-tabs {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 8px 10px !important;
+    border-radius: 20px !important;
+    background: #f1f5f9 !important;
+    border: 1.5px solid #e2e8f0 !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: thin !important;
+    margin-bottom: 24px !important;
+  }
+  
+  .view-tabs::-webkit-scrollbar {
+    height: 4px;
+  }
+  .view-tabs::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+  }
+
+  /* Desktop Viewport Lebar (>= 1180px): Symmetrical Equal-Width Flex */
+  @media (min-width: 1180px) {
+    .view-tab-btn {
+      flex: 1 1 0px !important;
+      min-width: 0 !important;
+      padding: 10px 8px !important;
+      font-size: 12px !important;
+      font-weight: 700 !important;
+      letter-spacing: -0.01em !important;
+      gap: 6px !important;
+      justify-content: center !important;
+      justify-content: safe center !important;
+      white-space: nowrap !important;
+      text-overflow: clip !important;
+    }
+  }
+
+  /* Laptop, Tablet & Mobile (< 1180px): Smooth Horizontal Pill Navigation */
+  @media (max-width: 1179px) {
+    .view-tabs {
+      flex-wrap: nowrap !important;
+      gap: 6px !important;
+      padding: 6px 8px !important;
+    }
+    .view-tab-btn {
+      flex: 0 0 auto !important;
+      min-width: max-content !important;
+      padding: 8px 14px !important;
+      font-size: 12px !important;
+      font-weight: 700 !important;
+      border-radius: 12px !important;
+      white-space: nowrap !important;
+    }
+  }
+
+  /* Perapian Counter Badge agar tidak mendesak tombol */
+  .counter-badge {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px !important;
+    height: 18px !important;
+    padding: 0 5px;
+    border-radius: 9999px;
+    background: #ef4444;
+    color: #ffffff;
+    font-size: 10.5px;
+    font-weight: 800;
+    margin-left: 4px;
+    line-height: 1 !important;
+    vertical-align: middle !important;
+  }
+  .counter-badge[style*="display: none"],
+  .counter-badge[style*="display:none"],
+  .counter-badge.hidden,
+  .counter-badge.counter-zero,
+  .counter-badge:empty {
+    display: none !important;
+  }
+</style>
+</head>
+<body>
+<!-- GLASSMORPHISM SPINNER LOADER -->
+<div id="glassLoader" class="glass-loader-overlay">
+  <div class="glass-loader-spinner">
+    <div class="glass-loader-ring-outer"></div>
+    <div class="glass-loader-ring-inner"></div>
+    <div class="glass-loader-core"></div>
+  </div>
+  <div class="glass-loader-text">Memuat Portal Guru...</div>
+  <div class="glass-loader-subtext">Menghubungkan ke Realtime Database IoT...</div>
+</div>
+
+<div class="dashboard-container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="user-badge">
+      <div class="user-avatar" id="avatarUser">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      <div class="user-info">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <h1 id="namaUser">Memuat Profil Guru...</h1>
+          <span class="badge-role-guru" id="badgeRoleGuruHeader">Portal Guru</span>
+        </div>
+        <p id="infoSubUser">NIP: - • Mapel: -</p>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+      <a href="admin.html" id="linkPanelAdminGuru" style="display:none;color:#6d28d9;background:#f5f3ff;border:1.5px solid #ddd6fe;font-weight:700;text-decoration:none;" class="btn-logout">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Panel Admin
+      </a>
+      <button class="btn-profile-header" onclick="bukaModalProfil()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Profil Guru
+      </button>
+      <button class="btn-logout" onclick="logout()">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        Keluar
+      </button>
+    </div>
+  </div>
+
+  <!-- TABS GURU & WALI KELAS (PRD Bab 7.2 & 7.3) -->
+  <div class="view-tabs">
+    <button class="view-tab-btn active" id="btnTabMonitoringWalas" onclick="switchGuruTab('tabMonitoringWalas', this)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Kelas Binaan
+    </button>
+    <button class="view-tab-btn" id="btnTabLiveAlertWalas" onclick="switchGuruTab('tabLiveAlertWalas', this)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Alert Terlambat
+    </button>
+    <button class="view-tab-btn" id="btnTabApprovalIzin" onclick="switchGuruTab('tabApprovalIzin', this)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+      Validasi Izin <span class="counter-badge counter-zero" id="countPendingIzin" style="display:none !important;"></span>
+    </button>
+    <button class="view-tab-btn" id="btnTabValidasiIzin" onclick="switchGuruTab('tabApprovalIzin', this)" style="display:none;" aria-hidden="true"></button>
+    <button class="view-tab-btn" id="btnTabAbsenGuru" onclick="switchGuruTab('tabAbsenGuru', this)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg>
+      Presensi Guru
+    </button>
+    <button class="view-tab-btn" id="btnTabLiveGuru" onclick="switchGuruTab('tabLiveGuru', this)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>
+      Radar Mengajar
+    </button>
+    <button class="view-tab-btn" id="btnTabKendalaGuru" onclick="switchGuruTab('tabKendalaGuru', this)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Lapor Kendala
+    </button>
+    <!-- Rekapitulasi Presensi disembunyikan: Khusus Admin Sesuai PRD -->
+    <button class="view-tab-btn" id="btnTabRekapGuru" onclick="switchGuruTab('tabRekapGuru', this)" style="display:none !important;" hidden>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Rekap Harian
+    </button>
+    <button class="view-tab-btn nav-item-rekap-presensi" id="btnTabRekapPresensiGuru" onclick="switchGuruTab('tabRekapPresensiGuru', this)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="m9 16 2 2 4-4"/></svg>
+      Rekap Terpadu
+    </button>
+  </div>
+
+  <!-- WIDGET STATUS KARTU NFC DINAS GURU (AKSESIBEL UNTUK GURU & WALI KELAS) -->
+  <div id="widgetNfcGuru" style="background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;box-shadow:0 1px 3px rgba(0,0,0,0.03);">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div id="iconNfcStatusGuru" style="width:38px;height:38px;border-radius:10px;background:#f8fafc;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:center;color:#0f172a;flex-shrink:0;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"/>
+          <path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"/>
+          <path d="M12.91 4.1a15.91 15.91 0 0 1 0 15.8"/>
+          <path d="M16.37 2a20.16 20.16 0 0 1 0 20"/>
+        </svg>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Kartu / NFC HP Guru</div>
+        <div id="badgeStatusNfcGuru" style="font-size:13px;font-weight:700;color:#0f172a;margin-top:2px;">
+          <span class="badge-nfc-unlinked" style="display:inline-flex;align-items:center;gap:5px;color:#b45309;background:#fffbeb;border:1px solid #fef3c7;padding:3px 10px;border-radius:9999px;font-size:12px;font-weight:600;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Kartu / HP Belum Terhubung
+          </span>
+        </div>
+      </div>
+    </div>
+    <button id="btnTautkanNfcGuru" type="button" onclick="bukaModalPairingNfcGuru()" style="display:inline-flex;align-items:center;gap:8px;background:#0f172a;color:#ffffff;border:1px solid #1e293b;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 6px rgba(15,23,42,0.12);transition:all 0.2s;" onmouseover="this.style.background='#1e293b'" onmouseout="this.style.background='#0f172a'">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"/>
+        <path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"/>
+        <path d="M12.91 4.1a15.91 15.91 0 0 1 0 15.8"/>
+        <path d="M16.37 2a20.16 20.16 0 0 1 0 20"/>
+      </svg>
+      Hubungkan Kartu / HP
+    </button>
+  </div>
+
+  <!-- ===== TAB KHUSUS WALI KELAS: MONITORING KELAS BINAAN (PRD Bab 7.3) ===== -->
+  <div id="tabMonitoringWalas" class="tab-content" style="display:block;">
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:24px;margin-bottom:20px;box-shadow:0 4px 12px rgba(0,0,0,0.03);">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:18px;">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="badge-role-guru" id="badgeKelasBinaanWalas" style="background:#dcfce7;color:#166534;">KELAS BINAAN: XII RPL 2</span>
+            <span id="badgeStatusKelasWalas" style="background:#10b981;color:#fff;font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;">KBM: BELAJAR</span>
+          </div>
+          <h2 style="font-size:20px;font-weight:800;color:#0f172a;margin-top:6px;display:flex;align-items:center;gap:8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            Presensi Kelas Binaan
+          </h2>
+          <p style="font-size:13px;color:#64748b;margin-top:2px;">Pantau kehadiran siswa kelas binaan Anda hari ini secara langsung.</p>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+          <select id="selectKelasWalasPilihan" onchange="gantiKelasBinaanWalas(this.value)" style="padding:10px 16px;border-radius:14px;border:1.5px solid #cbd5e1;font-size:13px;font-weight:700;color:#1e293b;background:#fff;">
+            <option value="XII RPL 1">XII RPL 1</option>
+            <option value="XII RPL 2" selected>XII RPL 2</option>
+            <option value="XII TKJ 1">XII TKJ 1</option>
+          </select>
+          <button onclick="muatStatistikWalas()" class="btn-mini-action" style="background:#0f172a;color:#fff;padding:10px 18px;border-radius:12px;font-weight:700;display:inline-flex;align-items:center;gap:6px;border:none;cursor:pointer;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <!-- Persentase Kehadiran Progress Bar -->
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:16px;margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-size:13px;font-weight:700;color:#334155;">Tingkat Kehadiran Kelas Hari Ini</span>
+          <span style="font-size:16px;font-weight:800;color:#10b981;" id="persentaseHadirWalas">0%</span>
+        </div>
+        <div style="width:100%;height:10px;background:#e2e8f0;border-radius:999px;overflow:hidden;">
+          <div id="barHadirWalas" style="width:0%;height:100%;background:linear-gradient(90deg, #10b981, #059669);transition:width 0.4s ease;"></div>
+        </div>
+      </div>
+
+      <!-- 5 Stat Cards Walas -->
+      <div class="stats-grid" style="grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px;">
+        <div class="stat-card" style="border-left:4px solid #3b82f6;">
+          <div class="stat-num" id="walasTotalSiswa" style="color:#2563eb;">0</div>
+          <div class="stat-label">Total Siswa</div>
+        </div>
+        <div class="stat-card" style="border-left:4px solid #10b981;">
+          <div class="stat-num" id="walasHadirTepat" style="color:#10b981;">0</div>
+          <div class="stat-label">Hadir Tepat Waktu</div>
+        </div>
+        <div class="stat-card" style="border-left:4px solid #f59e0b;">
+          <div class="stat-num" id="walasTerlambat" style="color:#d97706;">0</div>
+          <div class="stat-label">Terlambat</div>
+        </div>
+        <div class="stat-card" style="border-left:4px solid #8b5cf6;">
+          <div class="stat-num" id="walasIzinSakit" style="color:#7c3aed;">0</div>
+          <div class="stat-label">Izin / Sakit</div>
+        </div>
+        <div class="stat-card" style="border-left:4px solid #ef4444;">
+          <div class="stat-num" id="walasBelumAbsen" style="color:#dc2626;">0</div>
+          <div class="stat-label">Tanpa Keterangan</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabel Siswa Kelas Binaan -->
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:24px;">
+      <h3 style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Daftar Siswa Kelas Binaan
+      </h3>
+      <div id="gridSiswaWalas" class="student-grid-guru">
+        <div style="color:#64748b;padding:20px 0;">Memuat data siswa...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB KHUSUS WALI KELAS: LIVE ALERT KETERLAMBATAN PAGI (PRD Bab 4.1 & 7.3) ===== -->
+  <div id="tabLiveAlertWalas" class="tab-content" style="display:none;">
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:24px;margin-bottom:20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+        <div>
+          <div style="display:inline-flex;align-items:center;gap:6px;background:#fef2f2;color:#b91c1c;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:800;margin-bottom:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            JAM MASUK: 06.30 - 08.00 WIB
+          </div>
+          <h2 style="font-size:18px;font-weight:800;color:#0f172a;">Siswa Tanpa Keterangan Pagi Ini</h2>
+          <p style="font-size:13px;color:#64748b;margin-top:2px;">Daftar siswa yang belum tap kartu dan tanpa keterangan izin setelah 06.30 WIB agar dapat dipantau langsung oleh Wali Kelas.</p>
+        </div>
+        <button onclick="muatLiveAlertWalas()" class="btn-mini-action" style="background:#b91c1c;color:#fff;padding:9px 16px;border-radius:12px;font-weight:700;display:inline-flex;align-items:center;gap:6px;border:none;cursor:pointer;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+          Segarkan Alert
+        </button>
+      </div>
+
+      <div id="boxAlertWalasContainer">
+        <div style="color:#64748b;padding:20px 0;text-align:center;">Memeriksa status kehadiran siswa pagi...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB 0: PRESENSI MANDIRI GURU ===== -->
+  <div id="tabAbsenGuru" class="tab-content" style="display:none;">
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:26px 28px;margin-bottom:22px;box-shadow:0 4px 16px rgba(0,0,0,0.03);">
+      
+      <!-- Header Tab Presensi Guru -->
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg, rgba(16,185,129,0.12), rgba(5,150,105,0.06));border:1px solid rgba(16,185,129,0.2);display:flex;align-items:center;justify-content:center;color:#059669;flex-shrink:0;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"/>
+              <path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"/>
+              <path d="M12.91 4.1a15.91 15.91 0 0 1 0 15.8"/>
+              <path d="M16.37 2a20.16 20.16 0 0 1 0 20"/>
+            </svg>
+          </div>
+          <div>
+            <h2 style="font-size:18px;font-weight:800;color:#0f172a;letter-spacing:-0.01em;margin:0;">Presensi Guru</h2>
+            <p style="font-size:13px;color:#64748b;margin-top:2px;margin-bottom:0;">Presensi masuk dan pulang otomatis tercatat saat Anda menempelkan kartu atau HP ke scanner di sekolah.</p>
+          </div>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;padding:7px 16px;border-radius:12px;font-size:13px;font-weight:700;color:#334155;display:flex;align-items:center;gap:8px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span id="labelTglAbsenGuru">-</span>
+        </div>
+      </div>
+
+      <!-- Info Banner: Presensi via Kartu / HP -->
+      <div style="background:linear-gradient(135deg, rgba(16,185,129,0.06), rgba(5,150,105,0.02));border:1px solid rgba(16,185,129,0.18);border-radius:14px;padding:14px 18px;margin-bottom:22px;display:flex;align-items:flex-start;gap:14px;">
+        <div style="width:34px;height:34px;border-radius:10px;background:#ecfdf5;border:1px solid #a7f3d0;display:flex;align-items:center;justify-content:center;color:#059669;flex-shrink:0;margin-top:2px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"/>
+            <path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"/>
+            <path d="M12.91 4.1a15.91 15.91 0 0 1 0 15.8"/>
+            <path d="M16.37 2a20.16 20.16 0 0 1 0 20"/>
+          </svg>
+        </div>
+        <div style="font-size:13px;line-height:1.55;color:#065f46;">
+          <strong style="color:#047857;display:block;margin-bottom:2px;font-weight:700;">Presensi Cepat via Kartu atau HP:</strong>
+          Cukup tempelkan kartu atau HP ke scanner sekolah saat tiba dan pulang untuk mencatat kehadiran Anda secara otomatis.
+        </div>
+      </div>
+
+      <!-- Card Status Absen Guru Hari Ini -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(230px, 1fr));gap:16px;margin-bottom:22px;">
+        
+        <!-- Jam Masuk -->
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:18px 20px;transition:all 0.2s ease;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-size:11.5px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.04em;">Jam Masuk</span>
+            <div style="width:28px;height:28px;border-radius:8px;background:rgba(16,185,129,0.1);display:flex;align-items:center;justify-content:center;color:#059669;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+          </div>
+          <div style="font-size:26px;font-weight:800;color:#059669;letter-spacing:-0.02em;font-family:'Space Grotesk', 'Plus Jakarta Sans', sans-serif;" id="guruJamMasuk">--:--:--</div>
+          <div style="font-size:12px;font-weight:600;color:#059669;margin-top:6px;display:flex;align-items:center;gap:5px;" id="guruStatusMasuk">
+            <span style="width:6px;height:6px;border-radius:50%;background:#059669;display:inline-block;"></span> Belum Masuk
+          </div>
+        </div>
+
+        <!-- Jam Pulang -->
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:18px 20px;transition:all 0.2s ease;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-size:11.5px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.04em;">Jam Pulang</span>
+            <div style="width:28px;height:28px;border-radius:8px;background:rgba(79,70,229,0.1);display:flex;align-items:center;justify-content:center;color:#4f46e5;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            </div>
+          </div>
+          <div style="font-size:26px;font-weight:800;color:#4f46e5;letter-spacing:-0.02em;font-family:'Space Grotesk', 'Plus Jakarta Sans', sans-serif;" id="guruJamPulang">--:--:--</div>
+          <div style="font-size:12px;font-weight:600;color:#6366f1;margin-top:6px;display:flex;align-items:center;gap:5px;" id="guruStatusPulang">
+            <span style="width:6px;height:6px;border-radius:50%;background:#6366f1;display:inline-block;"></span> Belum Pulang
+          </div>
+        </div>
+
+        <!-- Status Harian -->
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:18px 20px;transition:all 0.2s ease;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-size:11.5px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.04em;">Status Hari Ini</span>
+            <div style="width:28px;height:28px;border-radius:8px;background:rgba(100,116,139,0.1);display:flex;align-items:center;justify-content:center;color:#475569;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+          </div>
+          <div style="font-size:20px;font-weight:800;color:#0f172a;letter-spacing:-0.01em;" id="guruStatusHarian">Belum Hadir</div>
+          <div style="font-size:12px;color:#64748b;margin-top:6px;line-height:1.4;" id="guruKeteranganDinas">Silakan tempelkan kartu atau HP di scanner sekolah</div>
+        </div>
+
+      </div>
+
+      <!-- Tombol Aksi Presensi Guru -->
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+        <button id="btnTautkanNfcTabAbsenGuru" type="button" onclick="bukaModalPairingNfcGuru()" style="flex:1;min-width:220px;background:#0f172a;color:#ffffff;border:1px solid #1e293b;border-radius:12px;padding:13px 20px;font-weight:700;font-size:13.5px;box-shadow:0 4px 14px rgba(15,23,42,0.15);cursor:pointer;transition:all 0.2s ease;display:inline-flex;align-items:center;justify-content:center;gap:8px;" onmouseover="this.style.background='#1e293b'" onmouseout="this.style.background='#0f172a'">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"/>
+            <path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"/>
+            <path d="M12.91 4.1a15.91 15.91 0 0 1 0 15.8"/>
+            <path d="M16.37 2a20.16 20.16 0 0 1 0 20"/>
+          </svg>
+          Hubungkan Kartu / HP
+        </button>
+        <button type="button" onclick="catatIzinDinasGuru()" style="flex:1;min-width:200px;background:#fff;color:#b45309;border:1.5px solid #f59e0b;border-radius:12px;padding:13px 20px;font-weight:700;font-size:13.5px;cursor:pointer;transition:all 0.2s ease;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 6px rgba(245,158,11,0.1);">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+          Izin / Tugas Luar
+        </button>
+      </div>
+      <div id="msgAbsenGuru" style="margin-top:14px;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600;display:none;"></div>
+    </div>
+
+    <!-- Riwayat Presensi Guru -->
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:26px 28px;box-shadow:0 4px 16px rgba(0,0,0,0.03);">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <h3 style="font-size:16px;font-weight:800;color:#1e293b;margin:0;">Riwayat Kehadiran Guru</h3>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="background:#f8fafc;color:#475569;text-align:left;border-bottom:1.5px solid #e2e8f0;">
+              <th style="padding:12px 14px;font-weight:700;border-top-left-radius:10px;">Tanggal</th>
+              <th style="padding:12px 14px;font-weight:700;">Jam Masuk</th>
+              <th style="padding:12px 14px;font-weight:700;">Jam Pulang</th>
+              <th style="padding:12px 14px;font-weight:700;">Status</th>
+              <th style="padding:12px 14px;font-weight:700;border-top-right-radius:10px;">Keterangan</th>
+            </tr>
+          </thead>
+          <tbody id="bodyRiwayatAbsenGuru">
+            <tr><td colspan="5" style="text-align:center;padding:24px;color:#94a3b8;">Belum ada data kehadiran hari ini.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB 1: RADAR MENGAJAR KELAS ===== -->
+  <div id="tabLiveGuru" class="tab-content" style="display:none;">
+    
+    <!-- Pilih Kelas & Tanggal -->
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:18px 22px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,0.02);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <label style="font-size:13.5px;font-weight:800;color:#1e293b;display:flex;align-items:center;gap:8px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/></svg>
+          Pilih Kelas yang Diajar:
+        </label>
+        <select id="pilihKelasGuru" onchange="muatDataPresensiKelas()" style="padding:10px 18px;border-radius:14px;border:1.5px solid #cbd5e1;font-size:14px;font-weight:700;color:#0f172a;background:#fff;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.04);min-width:200px;">
+          <option value="XII RPL 1">Kelas XII RPL 1</option>
+          <option value="XII RPL 2">Kelas XII RPL 2</option>
+          <option value="XII TKJ 1">Kelas XII TKJ 1</option>
+        </select>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:12.5px;font-weight:600;color:#64748b;">Tanggal:</span>
+        <div id="labelTanggalHariIni" style="background:#f1f5f9;border:1px solid #e2e8f0;padding:6px 14px;border-radius:10px;font-size:13px;font-weight:700;color:#0f172a;">-</div>
+      </div>
+    </div>
+
+    <!-- Banner Info Jam Pelajaran Berjalan -->
+    <div class="jam-banner-guru" id="bannerJamGuru" style="background:linear-gradient(135deg, #eef2ff, #e0e7ff);border:1.5px solid #c7d2fe;border-radius:18px;padding:18px 24px;margin-bottom:22px;box-shadow:0 4px 14px rgba(79,70,229,0.06);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;">
+      <div>
+        <div class="jam-banner-title" id="jamGuruTitle" style="font-size:16px;font-weight:800;color:#312e81;display:flex;align-items:center;gap:8px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4338ca" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Memeriksa Jam Pelajaran Aktif...
+        </div>
+        <div class="jam-banner-sub" id="jamGuruSub" style="font-size:13px;color:#4f46e5;margin-top:4px;font-weight:500;">Sinkronisasi data Raspberry Pi & Firebase...</div>
+      </div>
+      <div>
+        <button onclick="muatDataPresensiKelas()" class="btn-mini-action" style="background:#4f46e5;color:#fff;padding:10px 18px;font-size:13px;border-radius:12px;font-weight:700;box-shadow:0 2px 8px rgba(79,70,229,0.25);display:inline-flex;align-items:center;gap:6px;border:none;cursor:pointer;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+          Segarkan Data
+        </button>
+      </div>
+    </div>
+
+    <!-- Jadwal Pelajaran KBM Hari Ini untuk Kelas Terpilih (PRD Bab 7.2) -->
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:18px 22px;margin-bottom:24px;box-shadow:0 2px 8px rgba(0,0,0,0.02);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h4 style="margin:0;font-size:14.5px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Rangkaian Jam Mengajar Kelas Hari Ini
+        </h4>
+        <span style="font-size:12px;font-weight:600;color:#64748b;">Jam Ke-1 s/d Jam Ke-8</span>
+      </div>
+      <div id="listJadwalKbmGuru">
+        <div style="color:#64748b;font-size:12.5px;">Memuat jadwal KBM...</div>
+      </div>
+    </div>
+
+    <!-- Stat Ringkasan 3 Kolom Modern -->
+    <div class="guru-stats-grid stats-grid">
+      <!-- 1. Hadir -->
+      <div class="guru-stat-card stat-card hadir">
+        <div style="width:48px;height:48px;border-radius:14px;background:#dcfce7;display:flex;align-items:center;justify-content:center;color:#059669;flex-shrink:0;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        </div>
+        <div>
+          <div class="stat-num" id="statHadirGuru" style="font-size:32px;font-weight:800;color:#065f46;line-height:1;">0</div>
+          <div class="stat-label" style="font-size:13px;font-weight:700;color:#047857;margin-top:6px;">Hadir / Sudah Scan</div>
+          <div style="font-size:11.5px;color:#10b981;margin-top:2px;">Tepat waktu & hadir KBM</div>
+        </div>
+      </div>
+
+      <!-- 2. Izin/Sakit -->
+      <div class="guru-stat-card stat-card izin">
+        <div style="width:48px;height:48px;border-radius:14px;background:#fef3c7;display:flex;align-items:center;justify-content:center;color:#d97706;flex-shrink:0;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </div>
+        <div>
+          <div class="stat-num" id="statIzinGuru" style="font-size:32px;font-weight:800;color:#92400e;line-height:1;">0</div>
+          <div class="stat-label" style="font-size:13px;font-weight:700;color:#b45309;margin-top:6px;">Izin / Sakit Terverifikasi</div>
+          <div style="font-size:11.5px;color:#f59e0b;margin-top:2px;">Disetujui Wali Kelas</div>
+        </div>
+      </div>
+
+      <!-- 3. Belum Scan -->
+      <div class="guru-stat-card stat-card belum">
+        <div style="width:48px;height:48px;border-radius:14px;background:#fee2e2;display:flex;align-items:center;justify-content:center;color:#dc2626;flex-shrink:0;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <div>
+          <div class="stat-num" id="statBelumGuru" style="color:#991b1b;font-size:32px;font-weight:800;line-height:1;">0</div>
+          <div class="stat-label" style="font-size:13px;font-weight:700;color:#b91c1c;margin-top:6px;">Tanpa Keterangan</div>
+          <div style="font-size:11.5px;color:#ef4444;margin-top:2px;">Belum tap kartu & tanpa izin</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Header Daftar Siswa & Filter Cepat -->
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:22px 24px;box-shadow:0 4px 12px rgba(0,0,0,0.02);">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;margin-bottom:18px;">
+        <div>
+          <h3 style="font-size:17px;font-weight:800;color:#0f172a;margin:0;display:flex;align-items:center;gap:8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Daftar Siswa Kelas Terpilih
+          </h3>
+          <p style="font-size:12.5px;color:#64748b;margin:3px 0 0;">Pantau kehadiran siswa kelas. Gunakan tombol aksi cepat jika siswa lupa membawa kartu RFID.</p>
+        </div>
+
+        <!-- Filter Chips Bar -->
+        <div class="filter-chips-bar" style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button type="button" class="btn-filter-chip active" id="btnFilterSemua" onclick="filterGuruSiswa('semua', this)">
+            Semua (<span id="countChipSemua">0</span>)
+          </button>
+          <button type="button" class="btn-filter-chip" id="btnFilterBelum" onclick="filterGuruSiswa('belum', this)">
+            Tanpa Keterangan (<span id="countChipBelum">0</span>)
+          </button>
+          <button type="button" class="btn-filter-chip" id="btnFilterHadir" onclick="filterGuruSiswa('hadir', this)">
+            Sudah Hadir (<span id="countChipHadir">0</span>)
+          </button>
+          <button type="button" class="btn-filter-chip" id="btnFilterIzin" onclick="filterGuruSiswa('izin', this)">
+            Izin/Sakit (<span id="countChipIzin">0</span>)
+          </button>
+        </div>
+      </div>
+
+      <!-- Grid Siswa Kelas -->
+      <div id="gridSiswaGuru" class="student-grid-guru">
+        <div style="color:#64748b;font-size:14px;padding:20px 0;">Memuat data siswa kelas...</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Toast Notification Guru -->
+  <div id="toastGuruNotification" class="toast-guru-float">
+    <span id="toastGuruIcon" style="display:inline-flex;align-items:center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+    <span id="toastGuruMsg">Kehadiran manual berhasil dicatat.</span>
+  </div>
+
+  <!-- ===== TAB GURU: LAPOR KENDALA KBM / USULAN JAMKOS (PRD Bab 4.2 & 7.2) ===== -->
+  <div id="tabKendalaGuru" class="tab-content" style="display:none;">
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:24px;margin-bottom:20px;box-shadow:0 4px 12px rgba(0,0,0,0.03);">
+      <div style="margin-bottom:16px;">
+        <h2 style="font-size:18px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:8px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+          Lapor Izin Mengajar
+        </h2>
+        <p style="font-size:13px;color:#64748b;margin-top:2px;">
+          Jika Anda berhalangan hadir mengajar (sakit, tugas luar, atau keperluan mendesak), kirim pemberitahuan di sini agar kelas dan tugas siswa dapat dikoordinasikan.
+        </p>
+      </div>
+
+      <!-- Opsi Pemilihan Jadwal Mengajar Guru Berdasarkan Hari -->
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+          <label style="font-size:13px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:6px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            <span>Pilih Jadwal Mengajar Anda:</span>
+          </label>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;" id="selectorHariKendalaGuru">
+            <button type="button" class="btn-hari-kendala" data-hari="senin" onclick="gantiHariKendalaGuru('senin', this)" style="padding:5px 12px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#475569;cursor:pointer;">Senin</button>
+            <button type="button" class="btn-hari-kendala" data-hari="selasa" onclick="gantiHariKendalaGuru('selasa', this)" style="padding:5px 12px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#475569;cursor:pointer;">Selasa</button>
+            <button type="button" class="btn-hari-kendala" data-hari="rabu" onclick="gantiHariKendalaGuru('rabu', this)" style="padding:5px 12px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#475569;cursor:pointer;">Rabu</button>
+            <button type="button" class="btn-hari-kendala" data-hari="kamis" onclick="gantiHariKendalaGuru('kamis', this)" style="padding:5px 12px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#475569;cursor:pointer;">Kamis</button>
+            <button type="button" class="btn-hari-kendala" data-hari="jumat" onclick="gantiHariKendalaGuru('jumat', this)" style="padding:5px 12px;font-size:12px;font-weight:600;border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#475569;cursor:pointer;">Jumat</button>
+          </div>
+        </div>
+        <div id="containerOpsiJadwalKendala" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:10px;">
+          <!-- Disuntikkan secara dinamis berdasarkan guru yang login -->
+        </div>
+      </div>
+
+      <form id="formKendalaGuru" onsubmit="event.preventDefault(); submitKendalaGuru();" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:14px;margin-bottom:14px;">
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:4px;">Pilih Kelas</label>
+          <select id="kendalaKelas" required style="width:100%;padding:10px 14px;border-radius:12px;border:1.5px solid #cbd5e1;font-size:13.5px;font-weight:700;background:#fff;">
+            <option value="XII RPL 1">XII RPL 1</option>
+            <option value="XII RPL 2">XII RPL 2</option>
+            <option value="XII TKJ 1">XII TKJ 1</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:4px;">Mata Pelajaran</label>
+          <input type="text" id="kendalaMapel" required placeholder="Contoh: Basis Data & Pemodelan RPL" style="width:100%;padding:10px 14px;border-radius:12px;border:1.5px solid #cbd5e1;font-size:13.5px;font-weight:600;">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:4px;">Jam Pembelajaran</label>
+          <input type="text" id="kendalaJamPelajaran" placeholder="Contoh: Jam 1-2 (07:00 - 08:30)" style="width:100%;padding:10px 14px;border-radius:12px;border:1.5px solid #cbd5e1;font-size:13.5px;font-weight:600;">
+          <input type="hidden" id="kendalaJamMulai" value="">
+          <input type="hidden" id="kendalaJamSelesai" value="">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:4px;">Tanggal</label>
+          <input type="date" id="kendalaTanggal" required style="width:100%;padding:10px 14px;border-radius:12px;border:1.5px solid #cbd5e1;font-size:13.5px;font-weight:600;">
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:4px;">Alasan Berhalangan</label>
+          <select id="kendalaJenis" required style="width:100%;padding:10px 14px;border-radius:12px;border:1.5px solid #cbd5e1;font-size:13.5px;font-weight:700;background:#fff;">
+            <option value="sakit_mendadak">Sakit</option>
+            <option value="penugasan_dinas">Tugas Luar / Dinas</option>
+            <option value="keperluan_mendesak">Keperluan Keluarga</option>
+            <option value="kendala_teknis">Kendala Perjalanan</option>
+          </select>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:4px;">Lampiran Bukti Kendala (Opsional)</label>
+          <input type="file" id="kendalaBukti" accept="image/*,application/pdf" style="width:100%;padding:8px 12px;border-radius:12px;border:1.5px solid #cbd5e1;font-size:12.5px;background:#fff;">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label style="display:block;font-size:12px;font-weight:700;color:#475569;margin-bottom:4px;">Keterangan & Tugas Siswa</label>
+          <textarea id="kendalaAlasan" rows="3" required placeholder="Tulis alasan berhalangan serta tugas yang perlu dikerjakan siswa di kelas..." style="width:100%;padding:10px 14px;border-radius:12px;border:1.5px solid #cbd5e1;font-size:13.5px;font-family:inherit;"></textarea>
+        </div>
+        <div style="grid-column:1/-1;display:flex;justify-content:flex-end;">
+          <button type="submit" id="btnSubmitKendala" class="btn-submit-action" style="background:#b91c1c;color:#fff;padding:12px 24px;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:8px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+            Kirim Laporan Izin
+          </button>
+        </div>
+      </form>
+      <div id="msgKendalaGuru" style="display:none;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600;"></div>
+    </div>
+
+    <!-- Riwayat Kendala Mengajar -->
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:20px;padding:24px;">
+      <h3 style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+        Riwayat Laporan Izin
+      </h3>
+      <div id="listRiwayatKendalaGuru">
+        <div style="color:#94a3b8;font-size:13.5px;padding:24px 0;text-align:center;">Belum ada riwayat laporan izin.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB 2: VALIDASI PERIZINAN SISWA ===== -->
+  <div id="tabApprovalIzin" class="tab-content" style="display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <div>
+        <h2 style="font-size:18px;font-weight:800;color:#1e293b;">Pengajuan Izin & Sakit Siswa</h2>
+        <p style="font-size:13px;color:#64748b;">Tinjau surat izin, bukti foto, dan beri persetujuan resmi.</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <button class="btn-mini-action" onclick="filterIzinGuru('semua')" id="btnFilterIzinSemua" style="background:#e2e8f0;color:#334155;">Semua</button>
+        <button class="btn-mini-action" onclick="filterIzinGuru('pending')" id="btnFilterIzinPending" style="background:#4f46e5;color:#fff;">Menunggu</button>
+        <button class="btn-mini-action" onclick="filterIzinGuru('disetujui')" id="btnFilterIzinDisetujui" style="background:#e2e8f0;color:#334155;">Disetujui</button>
+        <button class="btn-mini-action" onclick="filterIzinGuru('ditolak')" id="btnFilterIzinDitolak" style="background:#e2e8f0;color:#334155;">Ditolak</button>
+        <button class="btn-mini-action" onclick="segarkanPerizinanWalasManual()" id="btnSyncPerizinanWalas" style="background:#f1f5f9;color:#0f172a;display:inline-flex;align-items:center;gap:6px;font-weight:700;border:1px solid #cbd5e1;" title="Segarkan dan muat ulang izin siswa binaan">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+          Segarkan
+        </button>
+      </div>
+    </div>
+
+    <div id="listApprovalIzin">
+      <div style="text-align:center;padding:30px;color:#64748b;">Memuat daftar perizinan siswa...</div>
+    </div>
+  </div>
+  <div id="tabValidasiIzin" style="display:none;" aria-hidden="true"></div>
+
+  <!-- ===== TAB 3: REKAPITULASI PRESENSI (KHUSUS ADMIN - DISEMBUNYIKAN DI PORTAL GURU/WALAS) ===== -->
+  <div id="tabRekapGuru" class="tab-content" style="display:none !important;" hidden>
+    
+    <!-- HEADER REKAP PRESENSI GURU -->
+    <div class="content-header" style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;">
+      <div>
+        <h2 style="font-size:18px;font-weight:800;color:#0f172a;letter-spacing:-0.01em;margin:0;display:flex;align-items:center;gap:10px;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+            <path d="m9 16 2 2 4-4"/>
+          </svg>
+          Rekapitulasi Kehadiran
+        </h2>
+        <p style="font-size:13px;color:#64748b;margin-top:2px;margin-bottom:0;">
+          Tinjau akumulasi presensi siswa kelas binaan serta riwayat tap presensi mandiri guru secara transparan dan komprehensif.
+        </p>
+      </div>
+
+      <!-- Mode Switcher: Siswa Kelas vs Presensi Guru Pribadi -->
+      <div style="display:flex;background:#f1f5f9;border:1px solid #e2e8f0;padding:4px;border-radius:12px;gap:4px;">
+        <button type="button" id="btnSubmodeRekapKelas" onclick="gantiSubmodeRekapGuru('kelas')" class="btn-filter-chip active" style="font-size:12.5px;padding:6px 14px;border-radius:8px;">
+          Siswa Kelas
+        </button>
+        <button type="button" id="btnSubmodeRekapPribadi" onclick="gantiSubmodeRekapGuru('pribadi')" class="btn-filter-chip" style="font-size:12.5px;padding:6px 14px;border-radius:8px;">
+          Presensi Pribadi
+        </button>
+      </div>
+    </div>
+
+    <!-- FILTER & CONTROL BAR -->
+    <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;padding:18px 22px;margin-bottom:22px;box-shadow:0 1px 3px rgba(0,0,0,0.03);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <div id="wrapPilihKelasRekapGuru">
+          <label style="font-size:12px;font-weight:700;color:#64748b;display:block;margin-bottom:4px;">Pilih Kelas</label>
+          <select id="rekapKelas" onchange="generateRekapGuru()" style="padding:9px 14px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:13.5px;font-weight:700;color:#0f172a;background:#fff;outline:none;">
+            <option value="XII RPL 1">XII RPL 1</option>
+            <option value="XII RPL 2" selected>XII RPL 2</option>
+            <option value="XII TKJ 1">XII TKJ 1</option>
+          </select>
+        </div>
+
+        <div id="wrapTanggalRekapGuru">
+          <label style="font-size:12px;font-weight:700;color:#64748b;display:block;margin-bottom:4px;">Tanggal</label>
+          <input type="date" id="rekapTanggal" onchange="generateRekapGuru()" style="padding:8px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:13.5px;font-weight:600;color:#0f172a;">
+        </div>
+
+        <div>
+          <label style="font-size:12px;font-weight:700;color:#64748b;display:block;margin-bottom:4px;">Rentang Waktu:</label>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button type="button" class="btn-filter-chip" data-range="hari_ini" onclick="setRentangRekapGuru('hari_ini', this)">Hari Ini</button>
+            <button type="button" class="btn-filter-chip" data-range="7_hari" onclick="setRentangRekapGuru('7_hari', this)">7 Hari</button>
+            <button type="button" class="btn-filter-chip" data-range="bulan_ini" onclick="setRentangRekapGuru('bulan_ini', this)">Bulan Ini</button>
+            <button type="button" class="btn-filter-chip active" data-range="setahun" onclick="setRentangRekapGuru('setahun', this)">1 Tahun (2025/2026)</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <input type="text" id="cariRekapGuru" oninput="filterTabelRekapGuruLive()" placeholder="Cari nama atau NISN..." style="padding:9px 14px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:13px;min-width:180px;">
+        <button onclick="generateRekapGuru()" class="btn-mini-action" style="background:#4f46e5;color:#fff;padding:9px 16px;font-size:13px;font-weight:700;">Tampilkan Rekap</button>
+        <button onclick="window.print()" class="btn-mini-action" style="background:#0f172a;color:#fff;padding:9px 16px;font-size:13px;display:inline-flex;align-items:center;gap:6px;border:none;border-radius:10px;cursor:pointer;font-weight:700;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          Cetak / PDF
+        </button>
+      </div>
+    </div>
+
+    <!-- STATISTIK RINGKASAN KEHADIRAN (5 KARTU PERSIS PORTAL SISWA) -->
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:14px; margin-bottom:24px;">
+      <div style="background:linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%); border:1.5px solid #c7d2fe; border-radius:18px; padding:18px 14px; text-align:center; box-shadow:0 4px 12px rgba(99,102,241,0.08);">
+        <span style="font-size:11px; font-weight:700; color:#4338ca; text-transform:uppercase; letter-spacing:0.04em;">Persentase Hadir</span>
+        <h3 id="rekapGuruStatPersen" style="font-size:24px; font-weight:800; color:#4338ca; margin:4px 0 0 0;">100%</h3>
+      </div>
+      <div style="background:linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border:1.5px solid #86efac; border-radius:18px; padding:18px 14px; text-align:center; box-shadow:0 4px 12px rgba(16,185,129,0.08);">
+        <span style="font-size:11px; font-weight:700; color:#059669; text-transform:uppercase; letter-spacing:0.04em;">Total Hadir</span>
+        <h3 id="rekapGuruStatHadir" style="font-size:24px; font-weight:800; color:#059669; margin:4px 0 0 0;">0 Hari</h3>
+      </div>
+      <div style="background:linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border:1.5px solid #93c5fd; border-radius:18px; padding:18px 14px; text-align:center; box-shadow:0 4px 12px rgba(59,130,246,0.08);">
+        <span style="font-size:11px; font-weight:700; color:#2563eb; text-transform:uppercase; letter-spacing:0.04em;">Sakit</span>
+        <h3 id="rekapGuruStatSakit" style="font-size:24px; font-weight:800; color:#2563eb; margin:4px 0 0 0;">0 Hari</h3>
+      </div>
+      <div style="background:linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border:1.5px solid #fde68a; border-radius:18px; padding:18px 14px; text-align:center; box-shadow:0 4px 12px rgba(245,158,11,0.08);">
+        <span style="font-size:11px; font-weight:700; color:#d97706; text-transform:uppercase; letter-spacing:0.04em;">Izin / Dispen</span>
+        <h3 id="rekapGuruStatIzin" style="font-size:24px; font-weight:800; color:#d97706; margin:4px 0 0 0;">0 Hari</h3>
+      </div>
+      <div style="background:linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%); border:1.5px solid #fda4af; border-radius:18px; padding:18px 14px; text-align:center; box-shadow:0 4px 12px rgba(244,63,94,0.08);">
+        <span style="font-size:11px; font-weight:700; color:#e11d48; text-transform:uppercase; letter-spacing:0.04em;">Tanpa Keterangan</span>
+        <h3 id="rekapGuruStatAlpha" style="font-size:24px; font-weight:800; color:#e11d48; margin:4px 0 0 0;">0 Hari</h3>
+      </div>
+    </div>
+
+    <!-- TABEL REKAPITULASI -->
+    <div id="containerTabelRekap" style="overflow-x:auto; background:#fff; border-radius:18px; border:1px solid #e2e8f0; padding:8px; box-shadow:0 1px 3px rgba(0,0,0,0.03);">
+      <table style="width:100%;border-collapse:collapse;font-size:13.5px;" id="tabelRekapGuruUtama">
+        <thead id="headTabelRekapGuru">
+          <tr style="background:#f1f5f9;color:#334155;text-align:left;border-bottom:1.5px solid #e2e8f0;">
+            <th style="padding:12px 14px;">No</th>
+            <th style="padding:12px 14px;">NISN</th>
+            <th style="padding:12px 14px;">Nama Siswa</th>
+            <th style="padding:12px 14px;">Status Kehadiran</th>
+            <th style="padding:12px 14px;">Waktu Masuk / Scan</th>
+            <th style="padding:12px 14px;">Keterangan</th>
+          </tr>
+        </thead>
+        <tbody id="bodyTabelRekap">
+          <tr><td colspan="6" style="text-align:center;padding:24px;color:#64748b;">Pilih kelas dan tanggal lalu klik Tampilkan Rekap.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ===== TAB 4: REKAPITULASI PRESENSI KOMPREHENSIF PORTAL GURU (DUAL-MODE) ===== -->
+  <div id="tabRekapPresensiGuru" class="tab-content" style="display:none;">
+
+    <!-- HEADER REKAP PRESENSI GURU -->
+    <div class="content-header" style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;">
+      <div>
+        <h2 style="font-size:18px;font-weight:800;color:#0f172a;letter-spacing:-0.01em;margin:0;display:flex;align-items:center;gap:10px;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+            <path d="m9 16 2 2 4-4"/>
+          </svg>
+          Rekapitulasi Presensi Terpadu
+        </h2>
+        <p style="font-size:13.5px;color:#64748b;margin-top:4px;margin-bottom:0;">
+          Tinjau data statistik kehadiran siswa binaan per kelas serta catatan riwayat log tap presensi pribadi dewan guru secara transparan dan komprehensif.
+        </p>
+      </div>
+
+      <!-- SUB-TAB SWITCHER -->
+      <div class="subtab-kehadiran-wrap">
+        <button type="button" id="btnSubtabRekapSiswa" onclick="switchSubtabRekapGuru('siswa')" class="subtab-kehadiran-btn active">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Rekap Presensi Siswa Binaan
+        </button>
+        <button type="button" id="btnSubtabRekapPribadi" onclick="switchSubtabRekapGuru('pribadi')" class="subtab-kehadiran-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg>
+          Rekap Kehadiran Pribadi Guru
+        </button>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- SUB-TAB 1: REKAP PRESENSI SISWA BINAAN                   -->
+    <!-- ======================================================== -->
+    <div id="kontenRekapSiswaGuru">
+      <!-- FILTER & CONTROL BAR SISWA -->
+      <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;padding:18px 22px;margin-bottom:22px;box-shadow:0 1px 3px rgba(0,0,0,0.03);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+          <div>
+            <label style="font-size:12px;font-weight:700;color:#64748b;display:block;margin-bottom:4px;">Pilih Kelas</label>
+            <select id="rekapGuruPilihKelas" onchange="gantiKelasRekapGuru(this.value)" style="padding:9px 14px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:13.5px;font-weight:700;color:#0f172a;background:#fff;outline:none;">
+              <option value="XII RPL 1">XII RPL 1</option>
+              <option value="XII RPL 2" selected>XII RPL 2</option>
+              <option value="XII TKJ 1">XII TKJ 1</option>
+            </select>
+          </div>
+
+          <div>
+            <label style="font-size:12px;font-weight:700;color:#64748b;display:block;margin-bottom:4px;">Pilih Siswa</label>
+            <select id="rekapGuruPilihSiswa" onchange="gantiSiswaRekapGuru(this.value)" style="padding:9px 14px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:13px;font-weight:600;color:#0f172a;background:#fff;outline:none;min-width:220px;">
+              <option value="ALL">-- Seluruh Siswa di Kelas --</option>
+            </select>
+          </div>
+
+          <div>
+            <label style="font-size:12px;font-weight:700;color:#64748b;display:block;margin-bottom:4px;">Rentang Waktu:</label>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button type="button" class="filter-btn" data-range="hari_ini" onclick="filterRekapSiswaGuru('hari_ini', this)">Hari Ini</button>
+              <button type="button" class="filter-btn" data-range="7_hari" onclick="filterRekapSiswaGuru('7_hari', this)">7 Hari</button>
+              <button type="button" class="filter-btn" data-range="bulan_ini" onclick="filterRekapSiswaGuru('bulan_ini', this)">Bulan Ini</button>
+              <button type="button" class="filter-btn active" data-range="setahun" onclick="filterRekapSiswaGuru('setahun', this)">1 Tahun (2025/2026)</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <input type="text" id="cariRekapSiswaGuru" oninput="filterTabelRekapSiswaLive()" placeholder="Cari nama atau NISN..." style="padding:9px 14px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:13px;min-width:180px;">
+          <button type="button" onclick="cetakRekapSiswaGuru()" class="btn-mini-action" style="background:#0f172a;color:#fff;padding:9px 16px;font-size:13px;display:inline-flex;align-items:center;gap:6px;border:none;border-radius:10px;cursor:pointer;font-weight:700;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Cetak / PDF
+          </button>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:0 4px;">
+        <span id="rekapGuruPeriodeLabelSiswa" style="font-size:13px;font-weight:700;color:#64748b;">Memuat data kehadiran siswa...</span>
+      </div>
+
+      <!-- 5 KARTU STATISTIK SISWA -->
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:16px; margin-bottom:28px;">
+        <div style="background:linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%); border:1.5px solid #C7D2FE; border-radius:20px; padding:20px 16px; text-align:center; box-shadow:0 4px 12px rgba(99,102,241,0.1);">
+          <span style="font-size:11.5px; font-weight:700; color:#4338CA; text-transform:uppercase;">Persentase Hadir</span>
+          <h3 id="rekapGuruStatPersenSiswa" style="font-size:24px; font-weight:800; color:#4338CA; margin-top:4px;">0%</h3>
+        </div>
+        <div style="background:linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%); border:1.5px solid #86EFAC; border-radius:20px; padding:20px 16px; text-align:center; box-shadow:0 4px 12px rgba(16,185,129,0.1);">
+          <span style="font-size:11.5px; font-weight:700; color:#059669; text-transform:uppercase;">Total Hadir</span>
+          <h3 id="rekapGuruStatHadirSiswa" style="font-size:24px; font-weight:800; color:#059669; margin-top:4px;">0 Hari</h3>
+        </div>
+        <div style="background:linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); border:1.5px solid #93C5FD; border-radius:20px; padding:20px 16px; text-align:center; box-shadow:0 4px 12px rgba(59,130,246,0.1);">
+          <span style="font-size:11.5px; font-weight:700; color:#2563EB; text-transform:uppercase;">Sakit</span>
+          <h3 id="rekapGuruStatSakitSiswa" style="font-size:24px; font-weight:800; color:#2563EB; margin-top:4px;">0 Hari</h3>
+        </div>
+        <div style="background:linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%); border:1.5px solid #FDE68A; border-radius:20px; padding:20px 16px; text-align:center; box-shadow:0 4px 12px rgba(245,158,11,0.1);">
+          <span style="font-size:11.5px; font-weight:700; color:#D97706; text-transform:uppercase;">Izin / Dispen</span>
+          <h3 id="rekapGuruStatIzinSiswa" style="font-size:24px; font-weight:800; color:#D97706; margin-top:4px;">0 Hari</h3>
+        </div>
+        <div style="background:linear-gradient(135deg, #FFF1F2 0%, #FFE4E6 100%); border:1.5px solid #FDA4AF; border-radius:20px; padding:20px 16px; text-align:center; box-shadow:0 4px 12px rgba(244,63,94,0.1);">
+          <span style="font-size:11.5px; font-weight:700; color:#E11D48; text-transform:uppercase;">Tanpa Keterangan</span>
+          <h3 id="rekapGuruStatAlphaSiswa" style="font-size:24px; font-weight:800; color:#E11D48; margin-top:4px;">0 Hari</h3>
+        </div>
+      </div>
+
+      <!-- TABEL REKAPITULASI SISWA -->
+      <div style="overflow-x:auto; background:#fff; border-radius:18px; border:1px solid #e2e8f0; padding:8px; box-shadow:0 1px 3px rgba(0,0,0,0.03);">
+        <table style="width:100%;border-collapse:collapse;font-size:13.5px;" id="tabelRekapSiswaGuru">
+          <thead id="rekapGuruTheadSiswa">
+            <tr style="background:#f1f5f9;color:#334155;text-align:left;border-bottom:1.5px solid #e2e8f0;">
+              <th style="padding:12px 14px;">No</th>
+              <th style="padding:12px 14px;">NISN</th>
+              <th style="padding:12px 14px;">Nama Siswa</th>
+              <th style="padding:12px 14px;">Total Hari</th>
+              <th style="padding:12px 14px;">Hadir</th>
+              <th style="padding:12px 14px;">Sakit</th>
+              <th style="padding:12px 14px;">Izin/Dispen</th>
+              <th style="padding:12px 14px;">Persentase</th>
+              <th style="padding:12px 14px;">Status Kelulusan</th>
+            </tr>
+          </thead>
+          <tbody id="rekapGuruTbodySiswa">
+            <tr><td colspan="9" style="text-align:center;padding:24px;color:#64748b;">Memuat data rekapitulasi siswa...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- SUB-TAB 2: REKAP KEHADIRAN PRIBADI GURU                  -->
+    <!-- ======================================================== -->
+    <div id="kontenRekapPribadiGuru" style="display:none;">
+      <!-- PROFIL BANNER GURU LOGIN -->
+      <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;padding:20px 24px;margin-bottom:22px;box-shadow:0 1px 3px rgba(0,0,0,0.03);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:18px;">
+        <div style="display:flex;align-items:center;gap:16px;">
+          <div style="width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(79,70,229,0.25);flex-shrink:0;">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg>
+          </div>
+          <div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <h3 id="rekapPribadiNamaGuru" style="margin:0;font-size:16px;font-weight:800;color:#0f172a;">Muhammad Echa Putra, S.Kom.Gr</h3>
+              <span id="rekapPribadiStatusNfcGuru" style="font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:9999px;background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;display:inline-flex;align-items:center;gap:4px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Kartu RFID Terhubung
+              </span>
+            </div>
+            <p style="margin:4px 0 0 0;font-size:13px;color:#64748b;">
+              NIP: <span id="rekapPribadiNipGuru" style="font-weight:700;color:#334155;font-family:monospace;">199209142022211007</span> • Mapel: <span id="rekapPribadiMapelGuru" style="font-weight:700;color:#334155;">Basis Data & Pemodelan RPL</span>
+            </p>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <input type="text" id="cariRekapPribadiGuru" oninput="filterTabelRekapPribadiLive()" placeholder="Cari tanggal..." style="padding:9px 14px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:13px;min-width:160px;">
+          <button type="button" onclick="cetakRekapPribadiGuru()" class="btn-mini-action" style="background:#0f172a;color:#fff;padding:9px 16px;font-size:13px;display:inline-flex;align-items:center;gap:6px;border:none;border-radius:10px;cursor:pointer;font-weight:700;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Cetak / PDF
+          </button>
+        </div>
+      </div>
+
+      <!-- 5 KARTU STATISTIK GURU PRIBADI -->
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:16px; margin-bottom:28px;">
+        <div style="background:linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%); border:1.5px solid #C7D2FE; border-radius:20px; padding:20px 16px; text-align:center; box-shadow:0 4px 12px rgba(99,102,241,0.1);">
+          <span style="font-size:11.5px; font-weight:700; color:#4338CA; text-transform:uppercase;">% Kehadiran</span>
+          <h3 id="rekapGuruPribadiStatPersen" style="font-size:24px; font-weight:800; color:#4338CA; margin-top:4px;">100%</h3>
+        </div>
+        <div style="background:linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%); border:1.5px solid #86EFAC; border-radius:20px; padding:20px 16px; text-align:center; box-shadow:0 4px 12px rgba(16,185,129,0.1);">
+          <span style="font-size:11.5px; font-weight:700; color:#059669; text-transform:uppercase;">Total Hadir</span>
+          <h3 id="rekapGuruPribadiStatHadir" style="font-size:24px; font-weight:800; color:#059669; margin-top:4px;">0 Hari</h3>
+        </div>
+        <div style="background:linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%); border:1.5px solid #FDE68A; border-radius:20px; padding:20px 16px; text-align:center; box-shadow:0 4px 12px rgba(245,158,11,0.1);">
+          <span style="font-size:11.5px; font-weight:700; color:#D97706; text-transform:uppercase;">Izin Dinas</span>
+          <h3 id="rekapGuruPribadiStatIzin" style="font-size:24px; font-weight:800; color:#D97706; margin-top:4px;">0 Hari</h3>
+        </div>
+        <div style="background:linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%); border:1.5px solid #FDBA74; border-radius:20px; padding:20px 16px; text-align:center; box-shadow:0 4px 12px rgba(234,88,12,0.1);">
+          <span style="font-size:11.5px; font-weight:700; color:#EA580C; text-transform:uppercase;">Terlambat</span>
+          <h3 id="rekapGuruPribadiStatTerlambat" style="font-size:24px; font-weight:800; color:#EA580C; margin-top:4px;">0 Hari</h3>
+        </div>
+        <div style="background:linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%); border:1.5px solid #BBF7D0; border-radius:20px; padding:20px 16px; text-align:center; box-shadow:0 4px 12px rgba(34,197,94,0.1);">
+          <span style="font-size:11.5px; font-weight:700; color:#15803D; text-transform:uppercase;">Hari Kerja Efektif</span>
+          <h3 id="rekapGuruPribadiStatHariKerja" style="font-size:24px; font-weight:800; color:#15803D; margin-top:4px;">0 Hari</h3>
+        </div>
+      </div>
+
+      <!-- FILTER RENTANG WAKTU PRIBADI -->
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button type="button" class="filter-btn" data-range="hari_ini" onclick="filterRekapPribadiGuru('hari_ini', this)">Hari Ini</button>
+          <button type="button" class="filter-btn" data-range="7_hari" onclick="filterRekapPribadiGuru('7_hari', this)">7 Hari Terakhir</button>
+          <button type="button" class="filter-btn" data-range="bulan_ini" onclick="filterRekapPribadiGuru('bulan_ini', this)">Bulan Ini</button>
+          <button type="button" class="filter-btn active" data-range="setahun" onclick="filterRekapPribadiGuru('setahun', this)">1 Tahun (2025/2026)</button>
+        </div>
+        <span id="rekapGuruPeriodeLabelPribadi" style="font-size:13px;font-weight:700;color:#64748b;">Memuat data presensi guru...</span>
+      </div>
+
+      <!-- TABEL RIWAYAT PRESENSI PRIBADI GURU -->
+      <div style="overflow-x:auto; background:#fff; border-radius:18px; border:1px solid #e2e8f0; padding:8px; box-shadow:0 1px 3px rgba(0,0,0,0.03);">
+        <table style="width:100%;border-collapse:collapse;font-size:13.5px;" id="tabelRekapPribadiGuru">
+          <thead id="rekapGuruTheadPribadi">
+            <tr style="background:#f1f5f9;color:#334155;text-align:left;border-bottom:1.5px solid #e2e8f0;">
+              <th style="padding:12px 14px;">No</th>
+              <th style="padding:12px 14px;">Tanggal</th>
+              <th style="padding:12px 14px;">Hari</th>
+              <th style="padding:12px 14px;">Jam Masuk (Tap)</th>
+              <th style="padding:12px 14px;">Jam Pulang</th>
+              <th style="padding:12px 14px;">Status Kehadiran</th>
+              <th style="padding:12px 14px;">Keterangan / Tugas Luar</th>
+            </tr>
+          </thead>
+          <tbody id="rekapGuruPribadiTbody">
+            <tr><td colspan="7" style="text-align:center;padding:24px;color:#64748b;">Memuat log presensi pribadi...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- MODAL PREVIEW BUKTI IZIN -->
+<div class="modal-preview" id="modalBuktiIzin">
+  <div class="modal-preview-content">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <h3 style="font-size:16px;font-weight:800;color:#1e293b;margin:0;" id="modalBuktiTitle">Bukti Lampiran Izin</h3>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button id="btnBukaDiTabBaru" onclick="if(typeof bukaLampiranAktifDiTabBaru==='function')bukaLampiranAktifDiTabBaru();" style="display:none;border:none;background:#f1f5f9;color:#475569;padding:6px 10px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;align-items:center;gap:4px;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          Tab Baru
+        </button>
+        <button onclick="tutupModalBukti()" style="border:none;background:#f8fafc;width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:#64748b;transition:all 0.2s;" onmouseover="this.style.background='#f1f5f9';this.style.color='#0f172a'" onmouseout="this.style.background='#f8fafc';this.style.color='#64748b'">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+    <div id="modalBuktiBody" style="text-align:center;max-height:400px;overflow-y:auto;">
+      <img id="modalBuktiImg" src="" alt="Bukti" style="max-width:100%;border-radius:12px;display:none;">
+      <p id="modalBuktiText" style="color:#64748b;font-size:14px;"></p>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CHAT PERIZINAN -->
+<div id="modalChat" class="chat-modal-overlay">
+  <div class="chat-modal-box">
+    <div class="chat-modal-header">
+      <span style="font-weight:800;font-size:15px;color:#0F172A;" id="modalChatJudul">Konfirmasi & Chat Perizinan</span>
+      <button onclick="tutupModalChat()" class="btn-chat-close" style="background:#F1F5F9;border:1px solid #CBD5E1;padding:8px 16px;border-radius:12px;font-weight:700;cursor:pointer;color:#334155;display:inline-flex;align-items:center;gap:6px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        Tutup
+      </button>
+    </div>
+    <div id="chatBubbleContainer" style="flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:12px;background:#F8FAFC;max-height:360px;"></div>
+    <div style="padding:14px 18px;border-top:1px solid #E2E8F0;display:flex;gap:12px;background:#FFFFFF;">
+      <input type="text" id="chatInputPesan" class="chat-input-field" placeholder="Ketik pesan konfirmasi ke siswa..." style="flex:1;padding:12px 16px;border:1.5px solid #CBD5E1;border-radius:14px;background:#FFFFFF;color:#0F172A;"
+             onkeydown="if(event.key==='Enter') kirimPesanChat()">
+      <button onclick="kirimPesanChat()" class="btn-chat-send" style="background:linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);color:#FFFFFF;border:none;border-radius:14px;padding:12px 22px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(99,102,241,0.35);">Kirim</button>
+    </div>
+  </div>
+</div>
+
+<!-- GSAP & Lenis CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.1.18/dist/lenis.min.js"></script>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="assets/firebase-config.js?v=20261029_07"></script>
+<script src="assets/auth.js?v=20261024_02"></script>
+<script src="assets/jadwal-util.js?v=20261024_02"></script>
+<script src="assets/ceklis-popup.js?v=20261029_08"></script>
+<script src="assets/perijinan.js?v=20261029_09"></script>
+<script src="assets/dashboard-guru.js?v=20261029_09"></script>
+<script src="assets/profile-modal.js?v=20261024_02"></script>
+<script src="assets/chat-hub.js?v=20261029_06"></script>
+
+<script>
+  // Lenis Smooth Scroll Synchronized with GSAP Ticker
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let lenis = null;
+  if (!prefersReducedMotion && window.Lenis) {
+    try {
+      lenis = new Lenis({
+        duration: 1.2,
+        smoothWheel: true,
+        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t))
+      });
+      if (window.gsap) {
+        gsap.ticker.add((time) => {
+          lenis.raf(time * 1000);
+        });
+        gsap.ticker.lagSmoothing(0);
+      } else {
+        function raf(time) {
+          lenis.raf(time);
+          requestAnimationFrame(raf);
+        }
+        requestAnimationFrame(raf);
+      }
+    } catch (e) {
+      console.warn('Lenis init:', e);
+    }
+  }
+
+  // Dismiss Glass Loader and Run GSAP Entrance Animation
+  function dismissGlassLoader() {
+    const loader = document.getElementById('glassLoader');
+    if (!loader) return;
+    loader.style.pointerEvents = 'none';
+    if (window.gsap) {
+      gsap.to(loader, {
+        opacity: 0,
+        duration: 0.6,
+        ease: 'power2.out',
+        onComplete: () => {
+          loader.style.display = 'none';
+        }
+      });
+      if (!prefersReducedMotion) {
+        gsap.from('.header, .view-tabs, .card-siswa-guru, .card-izin-guru, .jam-banner-guru', {
+          opacity: 0,
+          y: 20,
+          duration: 0.7,
+          stagger: 0.08,
+          ease: 'power2.out',
+          clearProps: 'all'
+        });
+      }
+    } else {
+      loader.classList.add('fade-out');
+      setTimeout(() => { loader.style.display = 'none'; }, 600);
+    }
+  }
+
+  window.dismissGlassLoader = dismissGlassLoader;
+  window.addEventListener('load', () => {
+    setTimeout(dismissGlassLoader, 400);
+  });
+  // Fallback safety timeout
+  setTimeout(dismissGlassLoader, 2500);
+</script>
+
+<!-- MODAL PENAUTAN (PAIRING) NFC GURU KEDINASAN -->
+<div id="modalPairingNfcGuru" class="modal-nfc-overlay">
+  <div class="modal-nfc-card">
+    
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <div style="display:inline-flex;align-items:center;gap:6px;background:#f8fafc;color:#475569;border:1px solid #e2e8f0;padding:5px 12px;border-radius:9999px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">
+          <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19.1"/>
+        </svg>
+        Hubungkan Kartu / HP Guru
+      </div>
+      <button type="button" onclick="tutupModalPairingNfcGuru()" style="width:30px;height:30px;border-radius:50%;background:#f8fafc;border:1px solid #e2e8f0;display:inline-flex;align-items:center;justify-content:center;color:#64748b;cursor:pointer;padding:0;transition:all 0.2s;" onmouseover="this.style.background='#f1f5f9';this.style.color='#0f172a'" onmouseout="this.style.background='#f8fafc';this.style.color='#64748b'" title="Tutup">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <h3 style="font-size:20px;font-weight:800;color:#0f172a;margin:0 0 6px 0;letter-spacing:-0.02em;font-family:'Plus Jakarta Sans',sans-serif;">Hubungkan Kartu / NFC HP</h3>
+    <p id="teksPanduanNfcGuru" style="font-size:13px;color:#64748b;margin:0 auto 22px auto;line-height:1.5;max-width:360px;">
+      Tempelkan kartu atau sensor NFC HP Anda ke scanner IoT sekolah untuk menghubungkan...
+    </p>
+
+    <!-- Sleek Minimalist NFC Radar Graphic -->
+    <div class="nfc-radar-container">
+      <div class="nfc-radar-guide guide-1"></div>
+      <div class="nfc-radar-guide guide-2"></div>
+      <div class="nfc-wave wave-1"></div>
+      <div class="nfc-wave wave-2"></div>
+      <div class="nfc-wave wave-3"></div>
+      <div class="nfc-center-circle">
+        <span id="nfcIconCenterGuru" style="display:flex;align-items:center;justify-content:center;color:#ffffff;">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"/>
+            <path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"/>
+            <path d="M12.91 4.1a15.91 15.91 0 0 1 0 15.8"/>
+            <path d="M16.37 2a20.16 20.16 0 0 1 0 20"/>
+          </svg>
+        </span>
+      </div>
+    </div>
+
+    <!-- Countdown & Status Card -->
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:14px 16px;margin-bottom:20px;">
+      <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;">Waktu Tersisa</div>
+      <div id="countdownNfcGuru" style="font-size:32px;font-weight:800;color:#0f172a;font-family:'JetBrains Mono',ui-monospace,monospace;letter-spacing:-0.03em;line-height:1.1;margin-top:2px;">
+        <span id="nfcCountdownGuru">30s</span>
+      </div>
+      <div id="statusPairingNfcGuru" style="font-size:12.5px;font-weight:600;color:#059669;margin-top:6px;display:flex;align-items:center;justify-content:center;gap:6px;">
+        <span style="width:6px;height:6px;border-radius:50%;background:#10b981;display:inline-block;animation:pulseDot 1.5s infinite;"></span>
+        <span id="nfcStatusTextGuru">Menunggu scan pada scanner IoT sekolah...</span>
+      </div>
+    </div>
+
+    <div id="boxFeedbackNfcGuru" style="display:none;margin-bottom:18px;padding:12px 16px;border-radius:14px;font-size:13px;font-weight:700;border:1px solid transparent;"></div>
+
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+      <button id="btnSimulasiTapGuru" type="button" onclick="lakukanSimulasiTapGuru()" style="display:none !important;" aria-hidden="true" tabindex="-1">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"/>
+          <path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"/>
+          <path d="M12.91 4.1a15.91 15.91 0 0 1 0 15.8"/>
+          <path d="M16.37 2a20.16 20.16 0 0 1 0 20"/>
+        </svg>
+        Coba Tap Kartu / HP
+      </button>
+      <button id="btnBatalPairingGuru" type="button" onclick="tutupModalPairingNfcGuru()" style="min-width:140px;background:#ffffff;color:#475569;border:1.5px solid #cbd5e1;border-radius:12px;padding:12px 28px;font-size:13.5px;font-weight:700;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='#f1f5f9';this.style.borderColor='#94a3b8'" onmouseout="this.style.background='#ffffff';this.style.borderColor='#cbd5e1'">
+        Batal
+      </button>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,5090 @@
+
+function handleFileSuratChange(input) {
+  const contentEl = document.getElementById('dropzoneContentSurat');
+  const selEl = document.getElementById('dropzoneFileSelected');
+  const nameEl = document.getElementById('dropzoneFileName');
+  if (input && input.files && input.files.length > 0 && input.files[0]) {
+    const f = input.files[0];
+    if (nameEl) nameEl.textContent = `${f.name} (${(f.size / 1024).toFixed(1)} KB)`;
+    if (contentEl) contentEl.style.display = 'none';
+    if (selEl) selEl.style.display = 'flex';
+  } else {
+    if (contentEl) contentEl.style.display = 'flex';
+    if (selEl) selEl.style.display = 'none';
+  }
+}
+if (typeof window !== 'undefined') window.handleFileSuratChange = handleFileSuratChange;
+if (typeof global !== 'undefined') global.handleFileSuratChange = handleFileSuratChange;
+
+function getWIBTime(d) {
+  if (typeof getJamSekarangWIB === 'function') return getJamSekarangWIB(d);
+  const dateObj = d || new Date();
+  try {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Jakarta',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+    }).format(dateObj);
+  } catch (e) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return pad(dateObj.getHours()) + ':' + pad(dateObj.getMinutes()) + ':' + pad(dateObj.getSeconds());
+  }
+}
+
+// ===== DASHBOARD JS (UNIFIED 2026 EDITION) =====
+let currentUser = null;
+let shouldHaltDashboard = false;
+
+// Early synchronous guard: dashboard.html is STRICTLY for Siswa and Pengunjung
+(function () {
+if (typeof window !== 'undefined' && window.location && typeof sessionStorage !== 'undefined') {
+  try {
+    let rawSess = sessionStorage.getItem('user_aktif');
+    if (!rawSess && typeof localStorage !== 'undefined') {
+      const localSess = localStorage.getItem('user_aktif');
+      if (localSess) {
+        const testUser = JSON.parse(localSess);
+        if (testUser && testUser.role === 'admin') {
+          try { localStorage.removeItem('user_aktif'); } catch (e) {}
+        } else if (testUser && (testUser.role === 'guru' || testUser.role === 'walas')) {
+          // Tab-scoped role isolation: Portal Guru aktif di tab/localStorage lain.
+          // JANGAN menimpa sesi siswa atau meredirect jika membuka portal siswa secara mandiri.
+          let akunSiswa = null;
+          try {
+            const rawSiswa = localStorage.getItem('siswa_aktif');
+            if (rawSiswa) {
+              const s = JSON.parse(rawSiswa);
+              if (s && s.role === 'siswa') akunSiswa = s;
+            }
+          } catch (eS) {}
+          if (akunSiswa) {
+            try {
+              sessionStorage.setItem('user_aktif', JSON.stringify(akunSiswa));
+              rawSess = JSON.stringify(akunSiswa);
+            } catch (eSess) {}
+          } else {
+            shouldHaltDashboard = true;
+            window.location.replace('index.html');
+            return;
+          }
+        } else {
+          rawSess = localSess;
+        }
+      }
+    }
+    if (!rawSess) {
+      // Wajib Login: Pengguna anonim/tanpa sesi login dilarang keras masuk dashboard, seketika alihkan ke index.html
+      shouldHaltDashboard = true;
+      window.location.replace('index.html');
+      return;
+    }
+    if (rawSess) {
+      const sessUser = JSON.parse(rawSess);
+      if (sessUser) {
+        if (sessUser.role === 'admin') {
+          shouldHaltDashboard = true;
+          window.location.replace('admin.html');
+        } else if (sessUser.role === 'guru' || sessUser.role === 'walas') {
+          if (sessUser.nip && sessUser.isVerified) {
+            shouldHaltDashboard = true;
+            window.location.replace('dashboard-guru.html');
+          }
+        }
+      }
+    }
+  } catch (e) {}
+}
+})();
+
+if (!shouldHaltDashboard && typeof firebase !== 'undefined' && firebase.auth) {
+  firebase.auth().onAuthStateChanged(async function(fbUser) {
+    if (shouldHaltDashboard) return;
+    if (!fbUser) {
+      let session = typeof getSessionUser === 'function' ? getSessionUser() : null;
+      if (!session) {
+        // Pengguna tanpa sesi login wajib dialihkan ke portal login index.html
+        shouldHaltDashboard = true;
+        window.location.replace('index.html');
+        return;
+      }
+      if (session.role === 'admin') {
+        shouldHaltDashboard = true;
+        window.location.replace('admin.html');
+        return;
+      }
+      if (session.role === 'guru' || session.role === 'walas') {
+        if (session.nip && session.isVerified) {
+          shouldHaltDashboard = true;
+          window.location.replace('dashboard-guru.html');
+          return;
+        } else {
+          session.role = 'pengunjung';
+          if (typeof setSessionUser === 'function') setSessionUser(session);
+        }
+      }
+      currentUser = session;
+      initDashboard(currentUser);
+      return;
+    }
+    currentUser = await prosesLoginUser(fbUser);
+    if (currentUser.role === 'admin') {
+      shouldHaltDashboard = true;
+      window.location.replace('admin.html');
+      return;
+    }
+    if (currentUser.role === 'guru' || currentUser.role === 'walas') {
+      if (currentUser.nip && currentUser.isVerified) {
+        shouldHaltDashboard = true;
+        window.location.replace('dashboard-guru.html');
+        return;
+      } else {
+        currentUser.role = 'pengunjung';
+        if (typeof setSessionUser === 'function') setSessionUser(currentUser);
+      }
+    }
+    initDashboard(currentUser);
+  });
+}
+
+// Backward-compatibility support for standalone unit testing (test-dashboard-logic.js)
+if (typeof document !== 'undefined' && document.getElementById('statusHariIni') && !document.getElementById('namaUser')) {
+  const testNisn = (typeof localStorage !== 'undefined' && localStorage.getItem('nisn_aktif')) || (typeof nisn !== 'undefined' ? nisn : null);
+  let jamPulangKelas = null;
+
+  function pulangLebihAwalTest(entry) {
+    if (entry.status !== 'pulang' || !jamPulangKelas) return false;
+    let jamBatas = null;
+    if (typeof jamPulangKelas === 'string') {
+      jamBatas = jamPulangKelas;
+    } else if (typeof jamPulangKelas === 'object' && entry.tanggal) {
+      const d = new Date(entry.tanggal + 'T00:00:00');
+      const hariMap = ['minggu', 'senin', 'selasa', 'rabu', 'kamis', 'jumat', 'sabtu'];
+      const namaHari = hariMap[d.getDay()];
+      jamBatas = jamPulangKelas[namaHari] || null;
+    }
+    if (!jamBatas) return false;
+    return entry.waktu.slice(0, 5) < jamBatas;
+  }
+
+  function labelStatusTest(entry) {
+    if (entry.status === 'hadir') return 'Hadir';
+    if (entry.status === 'pulang') {
+      return pulangLebihAwalTest(entry) ? 'Pulang lebih awal' : 'Pulang';
+    }
+    return entry.status;
+  }
+
+  function entryDariHariIniTest(entry) {
+    return entry.tanggal === tanggalHariIni();
+  }
+
+  function mulaiDengarAbsensiTest() {
+    db.ref('absensi/' + testNisn).limitToLast(10).on('value', function (snapshot) {
+      const statusEl = document.getElementById('statusHariIni');
+      const data = snapshot.val();
+      const entries = data ? Object.values(data) : [];
+      const entryHariIni = entries.filter(entryDariHariIniTest).pop();
+
+      if (!entryHariIni) {
+        statusEl.className = 'status-card belum';
+        statusEl.innerHTML = '<p>Belum ada data absensi hari ini.</p>';
+        return;
+      }
+
+      statusEl.className = 'status-card' + (pulangLebihAwalTest(entryHariIni) ? ' peringatan' : '');
+      statusEl.innerHTML = '<p><strong>' + labelStatusTest(entryHariIni) + '</strong> pada ' + entryHariIni.waktu + '</p>';
+    });
+
+    db.ref('absensi/' + testNisn).limitToLast(30).on('value', function (snapshot) {
+      const riwayatEl = document.getElementById('riwayat');
+      const data = snapshot.val();
+      riwayatEl.innerHTML = '';
+
+      if (!data) {
+        riwayatEl.innerHTML = '<p style="color:#999; font-size:14px;">Belum ada riwayat.</p>';
+        return;
+      }
+
+      const entries = Object.values(data).reverse();
+      entries.forEach(function (entry) {
+        const item = document.createElement('div');
+        item.className = 'riwayat-item' + (pulangLebihAwalTest(entry) ? ' peringatan' : '');
+        const tanggalLabel = entry.tanggal ? entry.tanggal + ' ' : '';
+        item.innerHTML = '<span>' + tanggalLabel + entry.waktu + '</span><span>' + labelStatusTest(entry) + '</span>';
+        riwayatEl.appendChild(item);
+      });
+    });
+  }
+
+  if (testNisn && typeof db !== 'undefined') {
+    const sLocal = (typeof MASTER_DATA_SISWA_RESMI !== 'undefined' && MASTER_DATA_SISWA_RESMI[testNisn])
+      || (typeof window !== 'undefined' && window.MASTER_DATA_SISWA_RESMI && window.MASTER_DATA_SISWA_RESMI[testNisn])
+      || null;
+    const namaElAwal = document.getElementById('namaAnak');
+    if (namaElAwal && sLocal && sLocal.nama) {
+      namaElAwal.textContent = sLocal.nama;
+    }
+    db.ref('siswa/' + testNisn).once('value').then(function (snapshot) {
+      const data = snapshot.val();
+      const namaEl = document.getElementById('namaAnak');
+      if (namaEl) namaEl.textContent = (data && data.nama) || (sLocal && sLocal.nama) || 'Siswa';
+      if (data && data.kelas) {
+        return db.ref('jadwal/' + data.kelas).once('value');
+      }
+    }).then(function (snapshot) {
+      if (snapshot) jamPulangKelas = snapshot.val();
+      mulaiDengarAbsensiTest();
+    }).catch(function () {
+      mulaiDengarAbsensiTest();
+    });
+  }
+}
+
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-content').forEach(el => {
+    el.style.display = 'none';
+    el.classList.remove('active');
+  });
+  document.querySelectorAll('.view-tab-btn').forEach(b => b.classList.remove('active'));
+  const target = document.getElementById(id);
+  if (target) {
+    target.style.display = 'block';
+    target.classList.add('active');
+  }
+  if (btn) btn.classList.add('active');
+
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem('active_dashboard_tab', id);
+    }
+  } catch (e) {}
+
+  if (id === 'tabKelas') {
+    if (typeof renderPantauKelas === 'function') {
+      renderPantauKelas();
+    }
+    if (typeof subtabKehadiranAktif !== 'undefined' && subtabKehadiranAktif === 'guru' && typeof renderKehadiranGuru === 'function') {
+      renderKehadiranGuru();
+    }
+  }
+  if (id === 'tabBeranda' && typeof renderPantauBeranda === 'function') {
+    renderPantauBeranda();
+  }
+  if (id === 'tabRekap' && typeof initRekapPresensiSiswa === 'function') {
+    initRekapPresensiSiswa(currentUser);
+  }
+  if (id === 'tabJadwalTataTertib' && typeof muatJadwalBeranda === 'function') {
+    muatJadwalBeranda(currentSelectedKelasJadwal, currentSelectedHariJadwal);
+  }
+  if (id === 'tabRiwayatIjin' && typeof renderDaftarPerijinanSaya === 'function') {
+    renderDaftarPerijinanSaya('daftarPerijinanSaya', currentUser || (typeof getSessionUser === 'function' ? getSessionUser() : null));
+  }
+  if (id === 'tabPerijinan' && typeof populateDropdownSiswa === 'function') {
+    populateDropdownSiswa(currentUser || (typeof getSessionUser === 'function' ? getSessionUser() : null));
+  }
+}
+
+// Interaktivitas 3D Tilt & Hologram Glare pada Kartu Pelajar RFID Siswa
+function initInteractive3DCard() {
+  const card = document.getElementById('smartStudentCard');
+  if (!card) return;
+
+  let glare = card.querySelector('.smart-card-glare');
+  if (!glare) {
+    glare = document.createElement('div');
+    glare.className = 'smart-card-glare';
+    card.appendChild(glare);
+  }
+
+  card.addEventListener('mousemove', (e) => {
+    const rect = card.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const rotateX = ((y - centerY) / centerY) * -12;
+    const rotateY = ((x - centerX) / centerX) * 14;
+
+    card.style.transform = `perspective(1000px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg) translateY(-4px) scale3d(1.025, 1.025, 1.025)`;
+    glare.style.background = `radial-gradient(circle at ${(x / rect.width * 100).toFixed(1)}% ${(y / rect.height * 100).toFixed(1)}%, rgba(255,255,255,0.28) 0%, transparent 65%)`;
+  });
+
+  card.addEventListener('mouseleave', () => {
+    card.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(0) scale3d(1, 1, 1)';
+  });
+}
+
+async function initDashboard(user) {
+  if (!user) return;
+  currentUser = user;
+  if (user && (user.role === 'pengunjung' || user.isVerified === false)) {
+    try { localStorage.removeItem('siswa_aktif'); } catch (e) {}
+  }
+  if (typeof window !== 'undefined' && typeof window.perbaruiStatusWaChatHub === 'function') {
+    try { window.perbaruiStatusWaChatHub(); } catch (e) {}
+  }
+  if (user.role === 'admin') {
+    if (typeof window !== 'undefined' && window.location) window.location.replace('admin.html');
+    return;
+  }
+  if (user.role === 'guru' || user.role === 'walas') {
+    if (user.nip && user.isVerified) {
+      if (typeof window !== 'undefined' && window.location) window.location.replace('dashboard-guru.html');
+      return;
+    } else {
+      user.role = 'pengunjung';
+      if (typeof setSessionUser === 'function') setSessionUser(user);
+    }
+  }
+
+  // Header Profile: Strictly Siswa or Pengunjung (Anti-Leak Admin Identity)
+  const isAdminIdentity = (user.nama && /admin/i.test(user.nama)) || user.role === 'admin';
+  const displayNama = (user.role === 'siswa') ? (user.nama || 'Siswa') : (isAdminIdentity ? 'Pengunjung / Tamu Sekolah' : (user.nama || 'Pengunjung'));
+  document.getElementById('namaUser').textContent = displayNama;
+  if (user.role === 'siswa') {
+    document.getElementById('infoSubUser').textContent = user.kelas
+      ? `Siswa Kelas ${user.kelas} • NISN: ${user.nisn || '-'}`
+      : (user.email || 'Portal Presensi & Informasi Siswa');
+  } else {
+    document.getElementById('infoSubUser').textContent = 'Portal Presensi Siswa • Pengunjung / Tamu Sekolah';
+  }
+
+  if (user.role === 'siswa' && (user.nisn || user.foto)) {
+    const fotoSiswa = user.foto || ('assets/foto/' + user.nisn + '.jpg');
+    const img = document.createElement('img');
+    img.src = fotoSiswa;
+    img.alt = user.nama || 'Siswa';
+    img.style.width = '100%';
+    img.style.height = '100%';
+    img.style.objectFit = 'cover';
+    img.style.objectPosition = 'center top';
+    img.style.borderRadius = 'inherit';
+    if (user.foto_google) {
+      img.onerror = function() { this.src = user.foto_google; };
+    }
+    document.getElementById('avatarUser').innerHTML = '';
+    document.getElementById('avatarUser').appendChild(img);
+  } else if (user.foto_google && !isAdminIdentity) {
+    const img = document.createElement('img');
+    img.src = user.foto_google;
+    document.getElementById('avatarUser').innerHTML = '';
+    document.getElementById('avatarUser').appendChild(img);
+  } else {
+    const inisialText = (user.role === 'siswa' && user.nama)
+      ? (user.nama || 'U').split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()
+      : 'P';
+    document.getElementById('avatarUser').textContent = inisialText;
+  }
+
+  // Ensure Staff Review Banner is permanently hidden to prevent admin leaks
+  const staffBanner = document.getElementById('bannerStaffReview');
+  if (staffBanner) {
+    staffBanner.style.display = 'none';
+  }
+
+  // Set tanggal default ijin & pasang listener reset harian
+  const inputTgl = document.getElementById('perijinanTanggal');
+  if (inputTgl) {
+    if (typeof tanggalHariIni === 'function') {
+      inputTgl.value = tanggalHariIni();
+    }
+    if (!inputTgl._hasPermitDateListener) {
+      inputTgl._hasPermitDateListener = true;
+      const onDateChange = () => {
+        if (typeof populateDropdownSiswa === 'function') {
+          populateDropdownSiswa(user || currentUser);
+        }
+      };
+      inputTgl.addEventListener('change', onDateChange);
+      inputTgl.addEventListener('input', onDateChange);
+    }
+  }
+
+  // Reset status izin harian jika sudah berganti hari
+  if (user && user.nisn) {
+    resetStatusIzinHarianJikaPerlu(user.nisn);
+  }
+
+  // Inisialisasi Beranda Overview
+  initBerandaOverview(user);
+
+  // Populate dropdown daftar siswa untuk siapapun yang mengajukan perizinan
+  populateDropdownSiswa(user);
+
+  // Inisialisasi sinkronisasi realtime perizinan siswa (Firebase RTDB + BroadcastChannel)
+  if (typeof inisialisasiSinkronisasiPerizinanSiswa === 'function') {
+    inisialisasiSinkronisasiPerizinanSiswa(user);
+  }
+
+  // Load daftar perizinan yang diajukan oleh akun ini
+  if (typeof renderDaftarPerijinanSaya === 'function') {
+    renderDaftarPerijinanSaya('daftarPerijinanSaya', user);
+  }
+
+  // Inisialisasi pantau kelas
+  initPantauKelas(user);
+
+  // Inisialisasi 3D Tilt Kartu Siswa
+  if (typeof initInteractive3DCard === 'function') {
+    initInteractive3DCard();
+  }
+
+  // 60-Second Background Timer untuk update live KBM highlight
+  if (typeof window !== 'undefined' && !window._kbmLiveInterval && typeof setInterval !== 'undefined') {
+    window._kbmLiveInterval = setInterval(() => {
+      if (typeof muatJadwalBeranda === 'function') {
+        muatJadwalBeranda(currentSelectedKelasJadwal, currentSelectedHariJadwal);
+      }
+    }, 60000);
+    if (window._kbmLiveInterval && typeof window._kbmLiveInterval.unref === 'function') {
+      window._kbmLiveInterval.unref();
+    }
+  }
+}
+
+// Helper: Normalisasi format tanggal YYYY-MM-DD
+function normalisasiTanggalDashboard(tgl) {
+  if (!tgl || typeof tgl !== 'string') return tgl || '';
+  if (typeof normalisasiFormatTanggal === 'function') {
+    return normalisasiFormatTanggal(tgl);
+  }
+  const clean = tgl.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+  const slashMatch = clean.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slashMatch) {
+    const p1 = slashMatch[1].padStart(2, '0');
+    const p2 = slashMatch[2].padStart(2, '0');
+    const year = slashMatch[3];
+    if (parseInt(p1, 10) > 12) return `${year}-${p2}-${p1}`;
+    return `${year}-${p1}-${p2}`;
+  }
+  return clean;
+}
+
+// Helper: Reset harian otomatis jika izin yang tercatat berasal dari hari lampau (>12 jam lalu & tanggal < today)
+function resetStatusIzinHarianJikaPerlu(targetNisn) {
+  if (typeof localStorage === 'undefined' || !targetNisn) return false;
+  try {
+    const today = (typeof tanggalHariIni === 'function') ? tanggalHariIni() : new Date().toISOString().slice(0, 10);
+    const lastSubStr = localStorage.getItem('last_submission_' + targetNisn);
+    let subDate = '';
+    let subTime = 0;
+
+    if (lastSubStr) {
+      try {
+        const p = JSON.parse(lastSubStr);
+        if (p) {
+          subDate = normalisasiTanggalDashboard(p.tanggal || p.tanggal_norm || '');
+          subTime = p.timestamp || p.dibuat_pada || p.createdAt || (p.created_at ? Date.parse(p.created_at) : 0) || (subDate ? Date.parse(subDate) : 0) || 0;
+        }
+      } catch (eP) {}
+    }
+
+    const isPastDate = subDate && (subDate < today);
+    const isOldTimestamp = subTime > 0 && (Date.now() - subTime > 12 * 3600 * 1000);
+    const isPastSubmission = isPastDate && isOldTimestamp;
+
+    if (isPastSubmission) {
+      const currentFlag = localStorage.getItem('status_izin_' + targetNisn);
+      if (currentFlag === 'disetujui' || currentFlag === 'approved' || currentFlag === 'pending' || currentFlag === 'ditolak' || currentFlag === 'rejected' || !currentFlag) {
+        console.log(`[DailyPermitReset] Tanggal izin (${subDate}) telah berlalu dari hari ini (${today}). Me-reset form izin.`);
+        localStorage.removeItem('status_izin_' + targetNisn);
+        localStorage.removeItem('last_submission_' + targetNisn);
+        localStorage.setItem('status_izin_last_reset_' + targetNisn, today);
+
+        const btnSubmit = (typeof document !== 'undefined') ? document.getElementById('btnSubmitPerijinan') : null;
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.style.opacity = '1';
+          btnSubmit.style.cursor = 'pointer';
+          btnSubmit.textContent = 'Kirim Pengajuan Izin';
+          btnSubmit.title = '';
+        }
+        const msg = (typeof document !== 'undefined') ? document.getElementById('perijinanMsg') : null;
+        if (msg) {
+          msg.textContent = '';
+          msg.innerHTML = '';
+          msg.style.display = 'none';
+        }
+        return true;
+      }
+    }
+  } catch (e) {}
+  return false;
+}
+
+// Helper: Kelola status dan kunci form pengajuan perizinan siswa dengan pesan informatif
+function bukaKunciFormPengajuanSiswa(itemInfo, user) {
+  if (typeof document === 'undefined') return;
+  const btnSubmit = document.getElementById('btnSubmitPerijinan');
+  const msg = document.getElementById('perijinanMsg');
+
+  if (!itemInfo) {
+    const userNow = user || (typeof currentUser !== 'undefined' && currentUser) || (typeof getSessionUser === 'function' ? getSessionUser() : null);
+    const targetNisn = userNow && userNow.nisn ? String(userNow.nisn).trim() : '';
+    const approvedItem = targetNisn ? ambilIzinDisetujuiAktifSiswa(targetNisn) : null;
+    const pendingItem = targetNisn ? ambilIzinPendingAktifSiswa(targetNisn) : null;
+    const rejectedItem = targetNisn ? ambilIzinDitolakAktifSiswa(targetNisn) : null;
+    if (approvedItem) itemInfo = approvedItem;
+    else if (pendingItem) itemInfo = pendingItem;
+    else if (rejectedItem) itemInfo = rejectedItem;
+  }
+
+  if (!itemInfo) {
+    if (msg) {
+      if (!msg.innerHTML || msg.innerHTML.includes('Pengajuan Izin Sedang Menunggu Konfirmasi') || msg.innerHTML.includes('antrean verifikasi')) {
+        msg.textContent = '';
+        msg.innerHTML = '';
+        msg.style.display = 'none';
+      }
+    }
+    if (btnSubmit) {
+      btnSubmit.disabled = false;
+      btnSubmit.style.opacity = '1';
+      btnSubmit.style.cursor = 'pointer';
+      btnSubmit.textContent = 'Kirim Pengajuan Izin';
+      btnSubmit.title = '';
+    }
+    return;
+  }
+
+  const rawStatus = itemInfo ? String(itemInfo.status || itemInfo.statusBaru || '').toLowerCase() : '';
+  const isApproved = (rawStatus === 'disetujui' || rawStatus === 'approved' || (itemInfo && itemInfo.type === 'PERMIT_APPROVED'));
+  const isRejected = (rawStatus === 'ditolak' || rawStatus === 'rejected' || (itemInfo && itemInfo.type === 'PERMIT_REJECTED'));
+  const isCancelled = (rawStatus === 'dibatalkan' || rawStatus === 'cancelled' || (itemInfo && itemInfo.type === 'PERMIT_CANCELLED'));
+  const jenis = itemInfo ? (itemInfo.jenis || itemInfo.tipe || 'Izin').toUpperCase() : 'IZIN';
+  const tgl = itemInfo ? (itemInfo.tanggal || itemInfo.tanggal_norm || '') : '';
+  const catatan = itemInfo ? (itemInfo.catatan_guru || itemInfo.catatan || itemInfo.alasanTolak || itemInfo.alasan || '') : '';
+
+  const todayNow = (typeof tanggalHariIni === 'function') ? tanggalHariIni() : new Date().toISOString().slice(0, 10);
+  const infoDate = itemInfo ? normalisasiTanggalDashboard(itemInfo.tanggal || itemInfo.tanggal_norm || '') : '';
+  const infoTime = itemInfo ? (itemInfo.dibuat_pada || itemInfo.createdAt || (itemInfo.created_at ? Date.parse(itemInfo.created_at) : 0) || 0) : 0;
+  const isPastDayItem = infoDate && (infoDate < todayNow) && infoTime > 0 && (Date.now() - infoTime > 12 * 3600 * 1000);
+  if ((isApproved || isRejected || isCancelled) && isPastDayItem) {
+    // Izin lama dari hari kemarin, form hari ini harus tetap terbuka
+    if (btnSubmit) {
+      btnSubmit.disabled = false;
+      btnSubmit.style.opacity = '1';
+      btnSubmit.style.cursor = 'pointer';
+      btnSubmit.textContent = 'Kirim Pengajuan Izin';
+      btnSubmit.title = '';
+    }
+    if (msg) {
+      msg.textContent = '';
+      msg.innerHTML = '';
+      msg.style.display = 'none';
+    }
+    return;
+  }
+
+  if (isApproved) {
+    // KETENTUAN USER: Jika sudah di-ACC, maka tombol submit TERKUNCI (tidak bisa kirim lagi)
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.style.opacity = '0.85';
+      btnSubmit.style.cursor = 'not-allowed';
+      btnSubmit.textContent = 'Izin Telah Disetujui Resmi (Terkunci)';
+      btnSubmit.title = 'Pengajuan izin Anda telah disetujui resmi oleh Wali Kelas/Admin. Tidak dapat mengirimkan keluhan/izin lagi.';
+    }
+    if (msg) {
+      msg.style.display = 'block';
+      const humanJenis = (typeof formatHumanStatusIzin === 'function')
+        ? formatHumanStatusIzin(jenis)
+        : (jenis ? (jenis.charAt(0).toUpperCase() + jenis.slice(1).toLowerCase()) : 'Izin');
+      msg.innerHTML = [
+        '<div class="perizinan-status-card approved" style="background:linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.04) 100%);border:1.5px solid rgba(16, 185, 129, 0.35);border-radius:14px;padding:16px 18px;margin-top:14px;color:#065f46;">',
+        '  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">',
+        '    <div style="font-weight:800;display:flex;align-items:center;gap:8px;color:#047857;font-size:14px;">',
+        '      <span style="width:26px;height:26px;border-radius:8px;background:rgba(16, 185, 129, 0.15);color:#059669;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">',
+        '        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+        '      </span>',
+        '      <span>Pengajuan Izin Telah Disetujui Resmi</span>',
+        '    </div>',
+        '    <span style="font-size:10.5px;font-weight:800;letter-spacing:0.04em;padding:3px 9px;border-radius:9999px;background:rgba(16, 185, 129, 0.15);color:#047857;border:1px solid rgba(16, 185, 129, 0.3);">● TERVERIFIKASI</span>',
+        '  </div>',
+        '  <div style="font-size:13px;line-height:1.6;color:#065f46;">',
+        '    Permohonan <strong>' + humanJenis + '</strong>' + (tgl ? ' untuk tanggal <strong>' + tgl + '</strong>' : '') + ' telah <strong>disetujui resmi</strong> oleh Wali Kelas.' + (catatan ? ' Catatan guru: <em>"' + catatan + '"</em>.' : ''),
+        '  </div>',
+        '  <div style="margin-top:10px;padding-top:8px;border-top:1px dashed rgba(16, 185, 129, 0.25);display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:#059669;">',
+        '    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+        '    <span>Status kehadiran Anda telah tercatat resmi di sistem. Tombol pengajuan dinonaktifkan karena permohonan sudah disetujui.</span>',
+        '  </div>',
+        '</div>'
+      ].join('\n');
+    }
+  } else if (isRejected) {
+    // KETENTUAN USER: Jika ditolak, baru form dibuka kembali dan bisa kirim lagi
+    if (btnSubmit) {
+      btnSubmit.disabled = false;
+      btnSubmit.style.opacity = '1';
+      btnSubmit.style.cursor = 'pointer';
+      btnSubmit.textContent = 'Kirim Pengajuan Izin';
+      btnSubmit.title = '';
+    }
+    if (msg) {
+      msg.style.display = 'block';
+      msg.innerHTML = [
+        '<div style="background:#fef2f2;border:1.5px solid #fecaca;color:#991b1b;padding:12px 14px;border-radius:12px;font-size:13px;line-height:1.5;margin-top:6px;">',
+        '  <div style="font-weight:800;display:flex;align-items:center;gap:6px;margin-bottom:4px;color:#b91c1c;">',
+        '    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+        '    <span>Pengajuan Izin Telah Ditolak</span>',
+        '  </div>',
+        '  Pengajuan izin <strong>' + jenis + '</strong>' + (tgl ? ' untuk tanggal <strong>' + tgl + '</strong>' : '') + ' telah <strong>ditolak</strong> oleh Wali Kelas' + (catatan ? '. Alasan: <em>"' + catatan + '"</em>' : '.') + '<br>',
+        '  Form telah dibuka kembali. Anda dapat mengirimkan permohonan izin baru dengan melampirkan berkas yang valid.',
+        '</div>'
+      ].join('\n');
+    }
+  } else if (isCancelled) {
+    if (btnSubmit) {
+      btnSubmit.disabled = false;
+      btnSubmit.style.opacity = '1';
+      btnSubmit.style.cursor = 'pointer';
+      btnSubmit.textContent = 'Kirim Pengajuan Izin';
+      btnSubmit.title = '';
+    }
+    if (msg) {
+      msg.style.display = 'block';
+      msg.innerHTML = '<div style="background:#f8fafc;border:1.5px solid #cbd5e1;color:#475569;padding:12px 14px;border-radius:12px;font-size:13px;line-height:1.5;margin-top:6px;"><b>Permohonan Dibatalkan.</b> Form telah dibuka kembali untuk pengajuan permohonan baru.</div>';
+    }
+  }
+}
+
+// Helper: Sinkronisasi perizinan spesifik siswa ke antrean lokal dan form UI secara realtime
+function sinkronkanStatusIzinTargetSiswa(kId, val, targetNisn, user) {
+  if (!kId) return;
+  const userTarget = user || (typeof currentUser !== 'undefined' && currentUser) || (typeof getSessionUser === 'function' ? getSessionUser() : null);
+  const nisnTarget = targetNisn || (userTarget && userTarget.nisn ? String(userTarget.nisn).trim() : '');
+
+  if (!val) {
+    // Permohonan izin tidak ditemukan / telah dihapus dari RTDB
+    if (typeof window !== 'undefined' && window.cachePerizinanSiswaRealtime) {
+      delete window.cachePerizinanSiswaRealtime[kId];
+    }
+    if (typeof global !== 'undefined' && global.cachePerizinanSiswaRealtime) {
+      delete global.cachePerizinanSiswaRealtime[kId];
+    }
+    try {
+      if (typeof localStorage !== 'undefined' && nisnTarget) {
+        const lastSubStr = localStorage.getItem('last_submission_' + nisnTarget);
+        if (lastSubStr) {
+          const p = JSON.parse(lastSubStr);
+          if (p && (p.id === kId || p.pid === kId)) {
+            localStorage.removeItem('last_submission_' + nisnTarget);
+          }
+        }
+        ['local_perizinan', 'local_perijinan', 'daftar_perizinan_lokal'].forEach(k => {
+          const raw = localStorage.getItem(k);
+          if (!raw) return;
+          try {
+            let arr = JSON.parse(raw);
+            if (Array.isArray(arr)) {
+              const filtered = arr.filter(it => it && it.id !== kId && it.pid !== kId);
+              if (filtered.length !== arr.length) localStorage.setItem(k, JSON.stringify(filtered));
+            }
+          } catch (eArr) {}
+        });
+      }
+    } catch (eCl) {}
+
+    // Periksa apakah masih ada izin pending lain di cache realtime
+    const rtCache = (typeof window !== 'undefined' && window.cachePerizinanSiswaRealtime) ||
+                    (typeof global !== 'undefined' && global.cachePerizinanSiswaRealtime) || {};
+    const remainingPending = Object.values(rtCache).some(it => {
+      if (!it) return false;
+      const itNisn = String(it.nisn || it.siswaId || it.pengajuId || '').trim();
+      const isTarget = (itNisn === nisnTarget || (nisnTarget === '0098263610' && it.nama && String(it.nama).toLowerCase().includes('ihsan')));
+      const st = String(it.status || 'pending').toLowerCase().trim();
+      return isTarget && (st === 'pending' || st === 'menunggu');
+    });
+
+    let hasSessionPending = false;
+    try {
+      if (typeof sessionStorage !== 'undefined' && nisnTarget) {
+        hasSessionPending = Boolean(sessionStorage.getItem('pending_submission_' + nisnTarget));
+      }
+    } catch (eSs) {}
+
+    if (!remainingPending && !hasSessionPending) {
+      try {
+        if (typeof localStorage !== 'undefined' && nisnTarget) {
+          const curFlag = localStorage.getItem('status_izin_' + nisnTarget);
+          if (curFlag === 'pending' || curFlag === 'menunggu') {
+            localStorage.removeItem('status_izin_' + nisnTarget);
+          }
+        }
+      } catch (eLs) {}
+      bukaKunciFormPengajuanSiswa(null, userTarget);
+    }
+    if (typeof renderDaftarPerijinanSaya === 'function') {
+      renderDaftarPerijinanSaya('daftarPerijinanSaya', userTarget);
+    }
+    return;
+  }
+
+  // Snapshot memiliki data izin
+  if (typeof window !== 'undefined') {
+    if (!window.cachePerizinanSiswaRealtime) window.cachePerizinanSiswaRealtime = {};
+    window.cachePerizinanSiswaRealtime[kId] = val;
+  }
+  if (typeof global !== 'undefined') {
+    if (!global.cachePerizinanSiswaRealtime) global.cachePerizinanSiswaRealtime = {};
+    global.cachePerizinanSiswaRealtime[kId] = val;
+  }
+
+  const st = String(val.status || val.statusBaru || 'pending').toLowerCase().trim();
+  const isResolved = (st === 'disetujui' || st === 'approved' || st === 'ditolak' || st === 'rejected' || st === 'dibatalkan' || st === 'cancelled');
+  const statusNorm = (st === 'disetujui' || st === 'approved') ? 'disetujui' : ((st === 'ditolak' || st === 'rejected') ? 'ditolak' : 'dibatalkan');
+
+  if (isResolved) {
+    try {
+      if (typeof localStorage !== 'undefined' && nisnTarget) {
+        localStorage.setItem('status_izin_' + nisnTarget, statusNorm);
+        const lastSubStr = localStorage.getItem('last_submission_' + nisnTarget);
+        if (lastSubStr) {
+          const lastSub = JSON.parse(lastSubStr);
+          if (lastSub && (lastSub.id === kId || lastSub.pid === kId || (val.tanggal && lastSub.tanggal === val.tanggal) || lastSub.status === 'pending')) {
+            lastSub.status = statusNorm;
+            if (val.catatan_guru) lastSub.catatan_guru = val.catatan_guru;
+            if (val.diverifikasi_oleh) lastSub.diverifikasi_oleh = val.diverifikasi_oleh;
+            if (val.alasanTolak) lastSub.alasanTolak = val.alasanTolak;
+            localStorage.setItem('last_submission_' + nisnTarget, JSON.stringify(lastSub));
+          }
+        }
+        ['local_perizinan', 'local_perijinan', 'daftar_perizinan_lokal'].forEach(k => {
+          const raw = localStorage.getItem(k);
+          if (!raw) return;
+          try {
+            let arr = JSON.parse(raw);
+            if (Array.isArray(arr)) {
+              let updated = false;
+              arr = arr.map(it => {
+                if (!it) return it;
+                const itmNisn = String(it.nisn || it.siswaId || it.pengajuId || '').trim();
+                const isTarget = (itmNisn === nisnTarget || (nisnTarget === '0098263610' && it.nama && String(it.nama).toLowerCase().includes('ihsan')));
+                if (it.id === kId || it.pid === kId || (isTarget && (it.status === 'pending' || it.status === 'menunggu'))) {
+                  updated = true;
+                  return { ...it, status: statusNorm, catatan_guru: val.catatan_guru || it.catatan_guru, diverifikasi_oleh: val.diverifikasi_oleh || it.diverifikasi_oleh };
+                }
+                return it;
+              });
+              if (updated) localStorage.setItem(k, JSON.stringify(arr));
+            }
+          } catch (eArr) {}
+        });
+        localStorage.setItem('local_perizinan_updated', String(Date.now()));
+        localStorage.setItem('perizinan_sync_ping', String(Date.now()));
+      }
+      if (typeof sessionStorage !== 'undefined' && nisnTarget) {
+        sessionStorage.removeItem('pending_submission_' + nisnTarget);
+      }
+    } catch (eSync) {}
+
+    bukaKunciFormPengajuanSiswa(val, userTarget);
+    if (typeof renderDaftarPerijinanSaya === 'function') {
+      renderDaftarPerijinanSaya('daftarPerijinanSaya', userTarget);
+    }
+  } else if (st === 'pending' || st === 'menunggu') {
+    try {
+      if (typeof localStorage !== 'undefined' && nisnTarget) {
+        localStorage.setItem('status_izin_' + nisnTarget, 'pending');
+      }
+    } catch (ePending) {}
+  }
+}
+
+// Inisialisasi sinkronisasi realtime perizinan siswa (Firebase RTDB + BroadcastChannel)
+let perizinanSiswaListenerAktif = false;
+let perizinanSiswaListenerTargetNisn = '';
+function inisialisasiSinkronisasiPerizinanSiswa(user) {
+  if (!user) return;
+  const targetNisn = (user.nisn ? String(user.nisn).trim() : '') || (user.email === '7dosabesar557@gmail.com' ? '0098263610' : '') || (user.nama && user.nama.toLowerCase().includes('ihsan') ? '0098263610' : '');
+  const targetUid = user.uid || ('UID_' + targetNisn);
+  const targetNama = (user.nama || '').trim().toLowerCase();
+
+  // 1. Firebase RTDB Realtime Listener (untuk sinkronisasi lintas browser, incognito, & perangkat)
+  if (typeof db !== 'undefined' && db && typeof db.ref === 'function' && (!perizinanSiswaListenerAktif || perizinanSiswaListenerTargetNisn !== targetNisn)) {
+    perizinanSiswaListenerAktif = true;
+    perizinanSiswaListenerTargetNisn = targetNisn;
+    const handleSnap = function(snap) {
+      const val = (snap && typeof snap.val === 'function') ? snap.val() : snap;
+      const valData = (val && typeof val === 'object') ? val : {};
+      
+      const permitResolvedList = [];
+      let anyPending = false;
+      let hasChange = false;
+
+      // Bersihkan cache realtime lama untuk target siswa ini agar tidak menampung data usang
+      if (typeof window !== 'undefined' && window.cachePerizinanSiswaRealtime) {
+        Object.keys(window.cachePerizinanSiswaRealtime).forEach(k => {
+          const it = window.cachePerizinanSiswaRealtime[k];
+          if (it) {
+            const itmNisn = String(it.nisn || it.siswaId || it.pengajuId || '').trim();
+            const itmNama = (it.nama || it.nama_siswa || '').trim().toLowerCase();
+            if (itmNisn === targetNisn || (targetNisn === '0098263610' && itmNama.includes('ihsan'))) {
+              delete window.cachePerizinanSiswaRealtime[k];
+            }
+          }
+        });
+      }
+      if (typeof global !== 'undefined' && global.cachePerizinanSiswaRealtime) {
+        Object.keys(global.cachePerizinanSiswaRealtime).forEach(k => {
+          const it = global.cachePerizinanSiswaRealtime[k];
+          if (it) {
+            const itmNisn = String(it.nisn || it.siswaId || it.pengajuId || '').trim();
+            const itmNama = (it.nama || it.nama_siswa || '').trim().toLowerCase();
+            if (itmNisn === targetNisn || (targetNisn === '0098263610' && itmNama.includes('ihsan'))) {
+              delete global.cachePerizinanSiswaRealtime[k];
+            }
+          }
+        });
+      }
+
+      const items = Array.isArray(valData) ? valData : Object.values(valData);
+      items.forEach(item => {
+        if (!item) return;
+        const itmNisn = String(item.nisn || item.siswaId || item.pengajuId || '').trim();
+        const itmUid = item.uid || item.userId || '';
+        const itmNama = (item.nama || item.nama_siswa || '').trim().toLowerCase();
+        
+        const isMatch = (targetNisn && itmNisn === targetNisn) ||
+                        (targetUid && itmUid === targetUid) ||
+                        (targetNisn === '0098263610' && itmNama.includes('ihsan')) ||
+                        (targetNama && itmNama === targetNama);
+        if (!isMatch) return;
+
+        const kId = item.id || item.pid || ('PERMIT_' + (item.dibuat_pada || Math.random()));
+        if (typeof window !== 'undefined') {
+          if (!window.cachePerizinanSiswaRealtime) window.cachePerizinanSiswaRealtime = {};
+          window.cachePerizinanSiswaRealtime[kId] = item;
+        }
+        if (typeof global !== 'undefined') {
+          if (!global.cachePerizinanSiswaRealtime) global.cachePerizinanSiswaRealtime = {};
+          global.cachePerizinanSiswaRealtime[kId] = item;
+        }
+
+        const st = String(item.status || item.rawStatus || 'pending').toLowerCase().trim();
+        if (st === 'disetujui' || st === 'approved' || st === 'ditolak' || st === 'rejected' || st === 'dibatalkan' || st === 'cancelled') {
+          permitResolvedList.push(item);
+        } else if (st === 'pending' || st === 'menunggu') {
+          anyPending = true;
+        }
+      });
+
+      if (anyPending) {
+        // SISWA SEDANG MEMILIKI PERMOHONAN PENDING AKTIF DI CLOUD RTDB
+        try {
+          if (typeof localStorage !== 'undefined' && targetNisn) {
+            localStorage.setItem('status_izin_' + targetNisn, 'pending');
+          }
+        } catch (eStorage) {}
+
+        const btnSubmit = document.getElementById('btnSubmitPerijinan');
+        if (btnSubmit) {
+          btnSubmit.disabled = true;
+          btnSubmit.style.opacity = '0.6';
+          btnSubmit.style.cursor = 'not-allowed';
+          btnSubmit.textContent = 'Menunggu Konfirmasi Wali Kelas...';
+          btnSubmit.title = 'Anda masih memiliki permohonan izin yang sedang diverifikasi oleh Wali Kelas';
+        }
+        const msg = document.getElementById('perijinanMsg');
+        if (msg) {
+          msg.style.display = 'block';
+          msg.innerHTML = `
+            <div style="background:#fffbeb;border:1.5px solid #fde68a;color:#92400e;padding:12px 14px;border-radius:12px;font-size:13px;line-height:1.5;margin-top:6px;">
+              <div style="font-weight:800;display:flex;align-items:center;gap:6px;margin-bottom:4px;color:#b45309;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span>Pengajuan Izin Sedang Menunggu Konfirmasi</span>
+              </div>
+              Anda memiliki permohonan izin yang sedang dalam antrean verifikasi Wali Kelas.<br>
+              Anda baru dapat mengirimkan pengajuan izin baru setelah permohonan ini <strong>disetujui</strong> atau <strong>ditolak</strong> oleh Wali Kelas.
+            </div>
+          `;
+        }
+      } else if (permitResolvedList.length > 0) {
+        // Urutkan yang terbaru
+        permitResolvedList.sort((a, b) => {
+          const tA = (a.updated_at ? Date.parse(a.updated_at) : 0) || a.dibuat_pada || a.createdAt || 0;
+          const tB = (b.updated_at ? Date.parse(b.updated_at) : 0) || b.dibuat_pada || b.createdAt || 0;
+          return tB - tA;
+        });
+        const latestResolved = permitResolvedList[0];
+        const statusNorm = (latestResolved.status === 'disetujui' || latestResolved.status === 'approved') ? 'disetujui' : (latestResolved.status === 'ditolak' || latestResolved.status === 'rejected' ? 'ditolak' : 'dibatalkan');
+
+        const todaySync = (typeof tanggalHariIni === 'function') ? tanggalHariIni() : new Date().toISOString().slice(0, 10);
+        const resolvedDate = normalisasiTanggalDashboard(latestResolved.tanggal || latestResolved.tanggal_norm || '');
+        const resolvedTime = (latestResolved.updated_at ? Date.parse(latestResolved.updated_at) : 0) || latestResolved.dibuat_pada || latestResolved.createdAt || 0;
+        const isPastDayResolved = Boolean(resolvedDate && (resolvedDate < todaySync)) && resolvedTime > 0 && (Date.now() - resolvedTime > 12 * 3600 * 1000);
+        const isPastDayApproved = isPastDayResolved;
+
+        // Sinkronkan ke localStorage seketika
+        try {
+          if (typeof localStorage !== 'undefined' && targetNisn) {
+            if (!anyPending && !isPastDayResolved) {
+              const currentFlag = localStorage.getItem('status_izin_' + targetNisn);
+              if (currentFlag !== statusNorm) {
+                hasChange = true;
+                localStorage.setItem('status_izin_' + targetNisn, statusNorm);
+              }
+            } else if (isPastDayResolved && !anyPending) {
+              localStorage.removeItem('status_izin_' + targetNisn);
+              localStorage.removeItem('last_submission_' + targetNisn);
+            }
+            
+            // Update last_submission jika item yang di-submit cocok dengan item yang di-review
+            const lastSubStr = localStorage.getItem('last_submission_' + targetNisn);
+            if (lastSubStr) {
+              const lastSub = JSON.parse(lastSubStr);
+              if (lastSub && (lastSub.id === latestResolved.id || lastSub.pid === latestResolved.pid || (latestResolved.tanggal && lastSub.tanggal === latestResolved.tanggal))) {
+                if (lastSub.status !== statusNorm) {
+                  lastSub.status = statusNorm;
+                  if (latestResolved.catatan_guru) lastSub.catatan_guru = latestResolved.catatan_guru;
+                  if (latestResolved.diverifikasi_oleh) lastSub.diverifikasi_oleh = latestResolved.diverifikasi_oleh;
+                  localStorage.setItem('last_submission_' + targetNisn, JSON.stringify(lastSub));
+                  hasChange = true;
+                }
+              }
+            }
+
+            // Update array penyimpanan lokal
+            ['local_perizinan', 'local_perijinan', 'daftar_perizinan_lokal'].forEach(k => {
+              const raw = localStorage.getItem(k);
+              if (!raw) return;
+              let arr = JSON.parse(raw);
+              if (Array.isArray(arr)) {
+                let updatedArr = false;
+                arr = arr.map(it => {
+                  if (!it) return it;
+                  const isItm = (targetNisn && (it.nisn === targetNisn || it.siswaId === targetNisn)) ||
+                                (targetNisn === '0098263610' && it.nama && String(it.nama).toLowerCase().includes('ihsan'));
+                  if (isItm) {
+                    if (it.id === latestResolved.id || it.pid === latestResolved.pid || (latestResolved.tanggal && it.tanggal === latestResolved.tanggal)) {
+                      updatedArr = true;
+                      return { ...it, status: statusNorm, catatan_guru: latestResolved.catatan_guru || it.catatan_guru, diverifikasi_oleh: latestResolved.diverifikasi_oleh || it.diverifikasi_oleh };
+                    }
+                    if ((it.status === 'pending' || it.status === 'menunggu') && !anyPending) {
+                      updatedArr = true;
+                      return { ...it, status: statusNorm };
+                    }
+                  }
+                  return it;
+                });
+                if (updatedArr) {
+                  localStorage.setItem(k, JSON.stringify(arr));
+                  hasChange = true;
+                }
+              }
+            });
+            if (hasChange) {
+              localStorage.setItem('local_perizinan_updated', String(Date.now()));
+              localStorage.setItem('perizinan_sync_ping', String(Date.now()));
+            }
+          }
+          if (typeof sessionStorage !== 'undefined' && targetNisn) {
+            sessionStorage.removeItem('pending_submission_' + targetNisn);
+          }
+        } catch (eStorage) {}
+
+        if (isPastDayApproved) {
+          // Status izin lama di-reset untuk hari ini agar siswa bisa membuat izin baru
+          try {
+            if (typeof localStorage !== 'undefined' && targetNisn) {
+              localStorage.removeItem('status_izin_' + targetNisn);
+            }
+          } catch(e) {}
+          const btnSubmit = document.getElementById('btnSubmitPerijinan');
+          if (btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.style.opacity = '1';
+            btnSubmit.style.cursor = 'pointer';
+            btnSubmit.textContent = 'Kirim Pengajuan Izin';
+            btnSubmit.title = '';
+          }
+          const msg = document.getElementById('perijinanMsg');
+          if (msg) {
+            msg.textContent = '';
+            msg.innerHTML = '';
+            msg.style.display = 'none';
+          }
+        } else if (!anyPending) {
+          // Buka form submit siswa seketika jika status sudah resolved dan tidak ada permohonan pending baru
+          bukaKunciFormPengajuanSiswa(latestResolved, user);
+        }
+      } else if (!anyPending) {
+        // Tidak ada perizinan pending maupun resolved di RTDB untuk siswa ini
+        try {
+          if (typeof localStorage !== 'undefined' && targetNisn) {
+            const currentFlag = localStorage.getItem('status_izin_' + targetNisn);
+            if (currentFlag === 'pending' || currentFlag === 'menunggu') {
+              localStorage.removeItem('status_izin_' + targetNisn);
+              localStorage.removeItem('last_submission_' + targetNisn);
+              hasChange = true;
+            }
+            ['local_perizinan', 'local_perijinan', 'daftar_perizinan_lokal'].forEach(k => {
+              const raw = localStorage.getItem(k);
+              if (!raw) return;
+              try {
+                let arr = JSON.parse(raw);
+                if (Array.isArray(arr)) {
+                  const filtered = arr.filter(it => {
+                    if (!it) return false;
+                    const itmNisn = String(it.nisn || it.siswaId || it.pengajuId || '').trim();
+                    const isTarget = (itmNisn === targetNisn || (targetNisn === '0098263610' && it.nama && String(it.nama).toLowerCase().includes('ihsan')));
+                    const st = String(it.status || '').toLowerCase().trim();
+                    return !(isTarget && (st === 'pending' || st === 'menunggu'));
+                  });
+                  if (filtered.length !== arr.length) {
+                    localStorage.setItem(k, JSON.stringify(filtered));
+                    hasChange = true;
+                  }
+                }
+              } catch (eArr) {}
+            });
+            if (hasChange) {
+              localStorage.setItem('local_perizinan_updated', String(Date.now()));
+              localStorage.setItem('perizinan_sync_ping', String(Date.now()));
+            }
+          }
+          if (typeof sessionStorage !== 'undefined' && targetNisn) {
+            sessionStorage.removeItem('pending_submission_' + targetNisn);
+          }
+        } catch (eClear) {}
+        bukaKunciFormPengajuanSiswa(null, user);
+      }
+
+      // Re-render riwayat izin jika fungsi render tersedia
+      if (typeof renderDaftarPerijinanSaya === 'function') {
+        renderDaftarPerijinanSaya('daftarPerijinanSaya', user);
+      }
+    };
+
+    try {
+      if (targetNisn) {
+        db.ref('perijinan').orderByChild('nisn').equalTo(targetNisn).once('value', handleSnap).catch(() => null);
+        db.ref('perizinan').orderByChild('nisn').equalTo(targetNisn).once('value', handleSnap).catch(() => null);
+        db.ref('perijinan').orderByChild('nisn').equalTo(targetNisn).on('value', handleSnap, () => {});
+        db.ref('perizinan').orderByChild('nisn').equalTo(targetNisn).on('value', handleSnap, () => {});
+      }
+      db.ref('perijinan').once('value', handleSnap).catch(() => null);
+      db.ref('perizinan').once('value', handleSnap).catch(() => null);
+      db.ref('perijinan').on('value', handleSnap, () => {});
+      db.ref('perizinan').on('value', handleSnap, () => {});
+
+      // Pasang targeted listener ke child node spesifik siswa untuk menjamin realtime saat rules koleksi membatasi
+      const knownIds = new Set();
+      try {
+        if (typeof localStorage !== 'undefined' && targetNisn) {
+          const lastSubStr = localStorage.getItem('last_submission_' + targetNisn);
+          if (lastSubStr) {
+            const p = JSON.parse(lastSubStr);
+            if (p && (p.id || p.pid)) knownIds.add(p.id || p.pid);
+          }
+        }
+        const localList = (typeof ambilDataPerizinanLokal === 'function') ? ambilDataPerizinanLokal() : [];
+        localList.forEach(it => {
+          if (!it) return;
+          const itmNisn = String(it.nisn || it.siswaId || it.pengajuId || '').trim();
+          if (itmNisn === targetNisn && (it.id || it.pid)) {
+            knownIds.add(it.id || it.pid);
+          }
+        });
+      } catch (eKnown) {}
+
+      if (knownIds.size === 0) {
+        let hasSessionPending = false;
+        try {
+          if (typeof sessionStorage !== 'undefined' && targetNisn) {
+            hasSessionPending = Boolean(sessionStorage.getItem('pending_submission_' + targetNisn));
+          }
+        } catch (eSs) {}
+        if (!hasSessionPending && typeof localStorage !== 'undefined' && targetNisn) {
+          const curFlag = localStorage.getItem('status_izin_' + targetNisn);
+          if (curFlag === 'pending' || curFlag === 'menunggu') {
+            localStorage.removeItem('status_izin_' + targetNisn);
+            localStorage.removeItem('last_submission_' + targetNisn);
+            bukaKunciFormPengajuanSiswa(null, user);
+          }
+        }
+      } else {
+        let pendingChecks = knownIds.size;
+        let foundAnyInDb = false;
+        knownIds.forEach(kId => {
+          const handleTargetSnap = (snap) => {
+            const val = (snap && typeof snap.val === 'function') ? snap.val() : snap;
+            sinkronkanStatusIzinTargetSiswa(kId, val, targetNisn, user);
+          };
+          db.ref('perizinan/' + kId).once('value').then(snap => {
+            const v = (snap && typeof snap.val === 'function') ? snap.val() : snap;
+            if (v) foundAnyInDb = true;
+            pendingChecks--;
+            if (pendingChecks === 0 && !foundAnyInDb) {
+              let hasSessionPending = false;
+              try {
+                if (typeof sessionStorage !== 'undefined' && targetNisn) {
+                  hasSessionPending = Boolean(sessionStorage.getItem('pending_submission_' + targetNisn));
+                }
+              } catch (eSs) {}
+              if (!hasSessionPending && typeof localStorage !== 'undefined' && targetNisn) {
+                const curFlag = localStorage.getItem('status_izin_' + targetNisn);
+                if (curFlag === 'pending' || curFlag === 'menunggu') {
+                  localStorage.removeItem('status_izin_' + targetNisn);
+                  localStorage.removeItem('last_submission_' + targetNisn);
+                  bukaKunciFormPengajuanSiswa(null, user);
+                }
+              }
+            }
+          }).catch(() => {});
+          db.ref('perizinan/' + kId).on('value', handleTargetSnap, () => {});
+          db.ref('perijinan/' + kId).on('value', handleTargetSnap, () => {});
+        });
+      }
+    } catch (eDb) {}
+  }
+
+  // 2. BroadcastChannel Listener untuk komunikasi kilat antar-tab
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
+      const bc = new BroadcastChannel('ujikom_perizinan_bus');
+      if (typeof bc.unref === 'function') bc.unref();
+      bc.onmessage = function(ev) {
+        if (!ev || !ev.data) return;
+        const d = ev.data;
+        if (d.type === 'PERMIT_APPROVED' || d.type === 'PERMIT_REJECTED' || d.type === 'PERMIT_CANCELLED' || d.type === 'RESET_DATA') {
+          const matchNisn = !d.nisn || (targetNisn && d.nisn === targetNisn);
+          if (matchNisn) {
+            bukaKunciFormPengajuanSiswa(d, user);
+            if (typeof renderDaftarPerijinanSaya === 'function') {
+              renderDaftarPerijinanSaya('daftarPerijinanSaya', user);
+            }
+          }
+        }
+      };
+    }
+  } catch (eBc) {}
+}
+
+// Helper: Cek apakah siswa memiliki izin yang masih berstatus 'pending' / 'menunggu' (Anti Double-Send)
+function ambilIzinPendingAktifSiswa(nisn, jenis, tanggal) {
+  if (!nisn) return null;
+  const targetNisn = String(nisn).trim();
+
+  // 1. Kumpulkan seluruh rekaman perizinan siswa dari berbagai sumber penyimpanan lokal
+  const localItems = (typeof ambilDataPerizinanLokal === 'function') ? ambilDataPerizinanLokal() : [];
+  const rawStudentItems = [];
+
+  for (const item of localItems) {
+    if (!item) continue;
+    const itemNisn = String(item.nisn || item.siswaId || item.pengajuId || '').trim();
+    if (itemNisn === targetNisn || (targetNisn === '0098263610' && item.nama && String(item.nama).toLowerCase().includes('ihsan'))) {
+      rawStudentItems.push(item);
+    }
+  }
+
+  // Kumpulkan juga dari cache realtime RTDB jika tersedia
+  try {
+    const rtCache = (typeof window !== 'undefined' && window.cachePerizinanSiswaRealtime) ||
+                    (typeof global !== 'undefined' && global.cachePerizinanSiswaRealtime) || null;
+    if (rtCache) {
+      Object.values(rtCache).forEach(item => {
+        if (!item) return;
+        const itemNisn = String(item.nisn || item.siswaId || item.pengajuId || '').trim();
+        if (itemNisn === targetNisn || (targetNisn === '0098263610' && item.nama && String(item.nama).toLowerCase().includes('ihsan'))) {
+          rawStudentItems.push(item);
+        }
+      });
+    }
+  } catch (eRt) {}
+
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const lastSub = localStorage.getItem('last_submission_' + targetNisn);
+      if (lastSub) {
+        const parsed = JSON.parse(lastSub);
+        if (parsed) rawStudentItems.push(parsed);
+      }
+    }
+  } catch (e) {}
+
+  if (rawStudentItems.length === 0) return null;
+
+  function ambilWaktuSubmit(it) {
+    if (!it) return 0;
+    if (typeof it.dibuat_pada === 'number') return it.dibuat_pada;
+    if (typeof it.createdAt === 'number') return it.createdAt;
+    if (typeof it.created_at === 'number') return it.created_at;
+    if (it.created_at) { const p = Date.parse(it.created_at); if (!isNaN(p)) return p; }
+    if (it.dibuat_pada) { const p = Date.parse(it.dibuat_pada); if (!isNaN(p)) return p; }
+    if (it.tanggal) { const p = Date.parse(it.tanggal); if (!isNaN(p)) return p; }
+    return 0;
+  }
+
+  function ambilWaktuReview(it) {
+    if (!it) return 0;
+    if (it.updated_at) { const p = Date.parse(it.updated_at); if (!isNaN(p)) return p; }
+    if (it.rejectedAt) { const p = Date.parse(it.rejectedAt); if (!isNaN(p)) return p; }
+    if (it.diverifikasi_pada) { const p = Date.parse(it.diverifikasi_pada); if (!isNaN(p)) return p; }
+    return ambilWaktuSubmit(it);
+  }
+
+  // 2. Evaluasi apakah izin siswa sudah DITOLAK atau DISETUJUI oleh Wali Kelas
+  const resolvedIds = new Set();
+  let latestResolvedTime = 0;
+  let hasResolvedStatus = false;
+
+  for (const it of rawStudentItems) {
+    const st = String(it.status || '').toLowerCase().trim();
+    if (st === 'ditolak' || st === 'rejected' || st === 'disetujui' || st === 'approved' || st === 'dibatalkan' || st === 'cancelled') {
+      hasResolvedStatus = true;
+      if (it.id) resolvedIds.add(it.id);
+      if (it.pid) resolvedIds.add(it.pid);
+      const t = ambilWaktuReview(it);
+      if (t > latestResolvedTime) latestResolvedTime = t;
+    }
+  }
+
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const stFlag = localStorage.getItem('status_izin_' + targetNisn);
+      if (stFlag === 'ditolak' || stFlag === 'rejected' || stFlag === 'disetujui' || stFlag === 'approved' || stFlag === 'dibatalkan' || stFlag === 'cancelled') {
+        hasResolvedStatus = true;
+      }
+    }
+  } catch (e) {}
+
+  // 3. Cari pengajuan yang benar-benar masih berstatus PENDING
+  const pendingItems = rawStudentItems.filter(it => {
+    const st = String(it.status || 'pending').toLowerCase().trim();
+    const isPending = (st === 'pending' || st === 'menunggu');
+    if (!isPending) return false;
+
+    // Jika item dengan ID ini sudah resolved (disetujui / ditolak), abaikan copy pending yang usang
+    if ((it.id && resolvedIds.has(it.id)) || (it.pid && resolvedIds.has(it.pid))) {
+      return false;
+    }
+
+    if (jenis && it.jenis) {
+      const jA = String(jenis).toLowerCase();
+      const jB = String(it.jenis).toLowerCase();
+      const catA = (jA === 'dispensasi' || jA === 'dispen') ? 'dispen' : ((jA === 'izin' || jA === 'ijin_kegiatan' || jA === 'ijin') ? 'izin' : jA);
+      const catB = (jB === 'dispensasi' || jB === 'dispen') ? 'dispen' : ((jB === 'izin' || jB === 'ijin_kegiatan' || jB === 'ijin') ? 'izin' : jB);
+      if (catA !== catB) return false;
+    }
+    return true;
+  });
+
+  if (pendingItems.length === 0) {
+    // Tidak ada permohonan pending -> Siswa bebas mengirimkan izin
+    return null;
+  }
+
+  // Urutkan pengajuan pending dari yang paling baru
+  pendingItems.sort((a, b) => ambilWaktuSubmit(b) - ambilWaktuSubmit(a));
+  const latestPending = pendingItems[0];
+  const tPending = ambilWaktuSubmit(latestPending);
+  const todayPend = (typeof tanggalHariIni === 'function') ? tanggalHariIni() : new Date().toISOString().slice(0, 10);
+  const pDate = normalisasiTanggalDashboard(latestPending.tanggal || latestPending.tanggal_norm || '');
+  if (pDate && pDate < todayPend && (tPending === 0 || (Date.now() - tPending > 12 * 3600 * 1000))) {
+    return null;
+  }
+
+  // Jika izin siswa pernah ditolak/disetujui Walas, dan pending item ini dibuat SEBELUM atau SAAT waktu review tersebut,
+  // maka pending ini adalah entri usang sebelum review dan tidak boleh mengunci form
+  let stFlag = '';
+  try {
+    if (typeof localStorage !== 'undefined') {
+      stFlag = localStorage.getItem('status_izin_' + targetNisn) || '';
+    }
+  } catch (e) {}
+
+  if (hasResolvedStatus && latestResolvedTime > 0 && tPending > 0 && tPending <= latestResolvedTime) {
+    return null;
+  }
+  if ((stFlag === 'ditolak' || stFlag === 'rejected' || stFlag === 'dibatalkan' || stFlag === 'cancelled') && (!tPending || (latestResolvedTime > 0 && tPending <= latestResolvedTime))) {
+    return null;
+  }
+
+  // Jika pengajuan pending benar-benar baru dan belum dikonfirmasi oleh Walas, kunci form dan tunggu
+  return latestPending;
+}
+
+// Helper: Cek apakah siswa memiliki izin yang telah DISETUJUI / DI-ACC (Kunci Form jika sudah di-ACC)
+function ambilIzinDisetujuiAktifSiswa(nisn) {
+  if (!nisn) return null;
+  const targetNisn = String(nisn).trim();
+  const todayDisetujui = (typeof tanggalHariIni === 'function') ? tanggalHariIni() : new Date().toISOString().slice(0, 10);
+
+  // 1. Cek langsung flag status_izin
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const stFlag = localStorage.getItem('status_izin_' + targetNisn);
+      if (stFlag === 'ditolak' || stFlag === 'rejected' || stFlag === 'dibatalkan' || stFlag === 'cancelled') {
+        return null;
+      }
+      if (stFlag === 'disetujui' || stFlag === 'approved') {
+        const lastSubStr = localStorage.getItem('last_submission_' + targetNisn);
+        if (lastSubStr) {
+          try {
+            const parsed = JSON.parse(lastSubStr);
+            if (parsed) {
+              const subDate = normalisasiTanggalDashboard(parsed.tanggal || parsed.tanggal_norm || '');
+              const subTime = parsed.timestamp || parsed.dibuat_pada || parsed.createdAt || (parsed.created_at ? Date.parse(parsed.created_at) : 0) || 0;
+              if (subDate && subDate < todayDisetujui && subTime > 0 && (Date.now() - subTime > 12 * 3600 * 1000)) {
+                localStorage.removeItem('status_izin_' + targetNisn);
+                localStorage.removeItem('last_submission_' + targetNisn);
+                return null;
+              }
+              return Object.assign({}, parsed, { status: 'disetujui' });
+            }
+          } catch (eP) {}
+        }
+        return { status: 'disetujui', nisn: targetNisn };
+      }
+    }
+  } catch (e) {}
+
+  // 2. Kumpulkan rekaman perizinan siswa
+  const localItems = (typeof ambilDataPerizinanLokal === 'function') ? ambilDataPerizinanLokal() : [];
+  const rawStudentItems = [];
+
+  for (const item of localItems) {
+    if (!item) continue;
+    const itemNisn = String(item.nisn || item.siswaId || item.pengajuId || '').trim();
+    if (itemNisn === targetNisn || (targetNisn === '0098263610' && item.nama && String(item.nama).toLowerCase().includes('ihsan'))) {
+      rawStudentItems.push(item);
+    }
+  }
+
+  // Kumpulkan juga dari cache realtime RTDB jika tersedia
+  try {
+    const rtCache = (typeof window !== 'undefined' && window.cachePerizinanSiswaRealtime) ||
+                    (typeof global !== 'undefined' && global.cachePerizinanSiswaRealtime) || null;
+    if (rtCache) {
+      Object.values(rtCache).forEach(item => {
+        if (!item) return;
+        const itemNisn = String(item.nisn || item.siswaId || item.pengajuId || '').trim();
+        if (itemNisn === targetNisn || (targetNisn === '0098263610' && item.nama && String(item.nama).toLowerCase().includes('ihsan'))) {
+          rawStudentItems.push(item);
+        }
+      });
+    }
+  } catch (eRt) {}
+
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const lastSub = localStorage.getItem('last_submission_' + targetNisn);
+      if (lastSub) {
+        const parsed = JSON.parse(lastSub);
+        if (parsed) rawStudentItems.push(parsed);
+      }
+    }
+  } catch (e) {}
+
+  if (rawStudentItems.length === 0) return null;
+
+  function ambilWaktuSubmit(it) {
+    if (!it) return 0;
+    if (typeof it.timestamp === 'number') return it.timestamp;
+    if (typeof it.dibuat_pada === 'number') return it.dibuat_pada;
+    if (typeof it.createdAt === 'number') return it.createdAt;
+    if (typeof it.created_at === 'number') return it.created_at;
+    if (it.created_at) { const p = Date.parse(it.created_at); if (!isNaN(p)) return p; }
+    if (it.dibuat_pada) { const p = Date.parse(it.dibuat_pada); if (!isNaN(p)) return p; }
+    if (it.tanggal) { const p = Date.parse(it.tanggal); if (!isNaN(p)) return p; }
+    return 0;
+  }
+
+  rawStudentItems.sort((a, b) => ambilWaktuSubmit(b) - ambilWaktuSubmit(a));
+  const latestItem = rawStudentItems[0];
+  const st = String(latestItem.status || '').toLowerCase().trim();
+  if (st === 'disetujui' || st === 'approved') {
+    const itemDate = normalisasiTanggalDashboard(latestItem.tanggal || latestItem.tanggal_norm || '');
+    const itemTime = ambilWaktuSubmit(latestItem);
+    // Jika izin disetujui dibuat pada hari lampau (>12 jam lalu & itemDate < today), reset harian
+    if (itemDate && itemDate < todayDisetujui && (itemTime === 0 || (Date.now() - itemTime > 12 * 3600 * 1000))) {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem('status_izin_' + targetNisn);
+          localStorage.removeItem('last_submission_' + targetNisn);
+        }
+      } catch (e) {}
+      return null;
+    }
+    if (!itemDate && itemTime > 0 && (Date.now() - itemTime > 12 * 3600 * 1000)) {
+      return null;
+    }
+    return latestItem;
+  }
+  return null;
+}
+
+// Helper: Cek apakah permohonan izin siswa terakhir DITOLAK oleh Walas/Admin (Form terbuka kembali)
+function ambilIzinDitolakAktifSiswa(nisn) {
+  if (!nisn) return null;
+  const targetNisn = String(nisn).trim();
+
+  // 1. Cek langsung flag status_izin
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const stFlag = localStorage.getItem('status_izin_' + targetNisn);
+      if (stFlag === 'disetujui' || stFlag === 'approved' || stFlag === 'pending' || stFlag === 'menunggu') {
+        return null;
+      }
+      if (stFlag === 'ditolak' || stFlag === 'rejected') {
+        const lastSubStr = localStorage.getItem('last_submission_' + targetNisn);
+        if (lastSubStr) {
+          try {
+            const parsed = JSON.parse(lastSubStr);
+            if (parsed && (parsed.status === 'ditolak' || parsed.status === 'rejected')) {
+              const todaySt = (typeof tanggalHariIni === 'function') ? tanggalHariIni() : new Date().toISOString().slice(0, 10);
+              const subDate = normalisasiTanggalDashboard(parsed.tanggal || parsed.tanggal_norm || '');
+              const subTime = parsed.timestamp || parsed.dibuat_pada || parsed.createdAt || 0;
+              if (subDate && subDate < todaySt && subTime > 0 && (Date.now() - subTime > 12 * 3600 * 1000)) {
+                localStorage.removeItem('status_izin_' + targetNisn);
+                localStorage.removeItem('last_submission_' + targetNisn);
+                return null;
+              }
+              return Object.assign({}, parsed, { status: 'ditolak' });
+            }
+          } catch (eP) {}
+        }
+        return { status: 'ditolak', nisn: targetNisn };
+      }
+    }
+  } catch (e) {}
+
+  // 2. Kumpulkan rekaman perizinan siswa
+  const localItems = (typeof ambilDataPerizinanLokal === 'function') ? ambilDataPerizinanLokal() : [];
+  const rawStudentItems = [];
+
+  for (const item of localItems) {
+    if (!item) continue;
+    const itemNisn = String(item.nisn || item.siswaId || item.pengajuId || '').trim();
+    if (itemNisn === targetNisn || (targetNisn === '0098263610' && item.nama && String(item.nama).toLowerCase().includes('ihsan'))) {
+      rawStudentItems.push(item);
+    }
+  }
+
+  // Kumpulkan juga dari cache realtime RTDB jika tersedia
+  try {
+    const rtCache = (typeof window !== 'undefined' && window.cachePerizinanSiswaRealtime) ||
+                    (typeof global !== 'undefined' && global.cachePerizinanSiswaRealtime) || null;
+    if (rtCache) {
+      Object.values(rtCache).forEach(item => {
+        if (!item) return;
+        const itemNisn = String(item.nisn || item.siswaId || item.pengajuId || '').trim();
+        if (itemNisn === targetNisn || (targetNisn === '0098263610' && item.nama && String(item.nama).toLowerCase().includes('ihsan'))) {
+          rawStudentItems.push(item);
+        }
+      });
+    }
+  } catch (eRt) {}
+
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const lastSub = localStorage.getItem('last_submission_' + targetNisn);
+      if (lastSub) {
+        const parsed = JSON.parse(lastSub);
+        if (parsed) rawStudentItems.push(parsed);
+      }
+    }
+  } catch (e) {}
+
+  if (rawStudentItems.length === 0) return null;
+
+  function ambilWaktuSubmit(it) {
+    if (!it) return 0;
+    if (typeof it.dibuat_pada === 'number') return it.dibuat_pada;
+    if (typeof it.createdAt === 'number') return it.createdAt;
+    if (typeof it.created_at === 'number') return it.created_at;
+    if (it.created_at) { const p = Date.parse(it.created_at); if (!isNaN(p)) return p; }
+    if (it.dibuat_pada) { const p = Date.parse(it.dibuat_pada); if (!isNaN(p)) return p; }
+    if (it.tanggal) { const p = Date.parse(it.tanggal); if (!isNaN(p)) return p; }
+    return 0;
+  }
+
+  rawStudentItems.sort((a, b) => ambilWaktuSubmit(b) - ambilWaktuSubmit(a));
+  const latestItem = rawStudentItems[0];
+  const st = String(latestItem.status || '').toLowerCase().trim();
+  if (st === 'ditolak' || st === 'rejected') {
+    const todayDitolak = (typeof tanggalHariIni === 'function') ? tanggalHariIni() : new Date().toISOString().slice(0, 10);
+    const itemDate = normalisasiTanggalDashboard(latestItem.tanggal || latestItem.tanggal_norm || '');
+    const itemTime = ambilWaktuSubmit(latestItem);
+    if (itemDate && itemDate < todayDitolak && (itemTime === 0 || (Date.now() - itemTime > 12 * 3600 * 1000))) {
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem('status_izin_' + targetNisn);
+          localStorage.removeItem('last_submission_' + targetNisn);
+        }
+      } catch (e) {}
+      return null;
+    }
+    return latestItem;
+  }
+  return null;
+}
+
+function populateDropdownSiswa(user) {
+  const sel = document.getElementById('perijinanSiswaTarget');
+  const btnSubmit = document.getElementById('btnSubmitPerijinan');
+  const msg = document.getElementById('perijinanMsg');
+  if (!sel) return;
+
+  user = user || currentUser || (typeof getSessionUser === 'function' ? getSessionUser() : null);
+
+  let targetNisn = (user && user.nisn) ? String(user.nisn).trim() : '';
+  if (!targetNisn && user && user.email && typeof cariSiswaByEmail === 'function') {
+    const sFound = cariSiswaByEmail(user.email);
+    if (sFound && sFound.nisn) targetNisn = sFound.nisn;
+  }
+  if (!targetNisn && user && user.nama) {
+    const ms = (typeof MASTER_DATA_SISWA_RESMI !== 'undefined' && MASTER_DATA_SISWA_RESMI)
+      || (typeof window !== 'undefined' && window.MASTER_DATA_SISWA_RESMI)
+      || {};
+    const nLow = user.nama.toLowerCase().trim();
+    for (const k in ms) {
+      if (ms[k] && ms[k].nama && ms[k].nama.toLowerCase().trim() === nLow) {
+        targetNisn = k;
+        break;
+      }
+    }
+  }
+  if (!targetNisn && user && user.nama && user.nama.toLowerCase().includes('ihsan')) {
+    targetNisn = '0098263610';
+  }
+
+  const isSiswa = user && (user.role === 'siswa' || (!user.role && targetNisn) || (targetNisn && typeof MASTER_DATA_SISWA_RESMI !== 'undefined' && MASTER_DATA_SISWA_RESMI[targetNisn]) || targetNisn === '0098263610');
+
+  // Siswa terverifikasi hanya dapat mengajukan izin untuk dirinya sendiri
+  if (user && isSiswa && targetNisn && user.role !== 'pengunjung') {
+    const s = (typeof MASTER_DATA_SISWA_RESMI !== 'undefined' && MASTER_DATA_SISWA_RESMI[targetNisn])
+      || (typeof window !== 'undefined' && window.MASTER_DATA_SISWA_RESMI && window.MASTER_DATA_SISWA_RESMI[targetNisn])
+      || {};
+    const namaSiswa = s.nama || user.nama || (targetNisn === '0098263610' ? 'M. IHSAN ATHALLAH' : 'Siswa');
+    let kelasSiswa = s.kelas || user.kelas || (targetNisn === '0098263610' ? 'XII RPL 2' : '-');
+    if (typeof normalisasiKelas === 'function' && kelasSiswa && kelasSiswa !== '-') {
+      kelasSiswa = normalisasiKelas(kelasSiswa);
+    }
+        sel.innerHTML = `<option value="${targetNisn}">${namaSiswa} (${kelasSiswa}) — NISN: ${targetNisn}</option>`;
+    sel.value = targetNisn;
+    sel.disabled = true;
+
+    // 1. Cek apakah izin siswa sudah DISETUJUI / DI-ACC (Kunci form: tidak bisa kirim keluhan/izin lagi)
+    const approvedItem = (typeof ambilIzinDisetujuiAktifSiswa === 'function') ? ambilIzinDisetujuiAktifSiswa(targetNisn) : null;
+    if (approvedItem) {
+      if (btnSubmit) {
+        btnSubmit.disabled = true;
+        btnSubmit.style.opacity = '0.85';
+        btnSubmit.style.cursor = 'not-allowed';
+        btnSubmit.textContent = 'Izin Telah Disetujui Resmi (Terkunci)';
+        btnSubmit.title = 'Pengajuan izin Anda telah disetujui resmi oleh Wali Kelas/Admin.';
+      }
+      if (msg) {
+        msg.style.display = 'block';
+        const rawJenis = (approvedItem.jenis || approvedItem.tipe || 'Izin');
+        const humanJenis = (typeof formatHumanStatusIzin === 'function')
+          ? formatHumanStatusIzin(rawJenis)
+          : (rawJenis.charAt(0).toUpperCase() + rawJenis.slice(1).toLowerCase());
+        const tgl = approvedItem.tanggal || approvedItem.tanggal_norm || '';
+        const catatan = approvedItem.catatan_guru || approvedItem.catatan || approvedItem.alasan || '';
+        msg.innerHTML = [
+          '<div class="perizinan-status-card approved" style="background:linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.04) 100%);border:1.5px solid rgba(16, 185, 129, 0.35);border-radius:14px;padding:16px 18px;margin-top:14px;color:#065f46;">',
+          '  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">',
+          '    <div style="font-weight:800;display:flex;align-items:center;gap:8px;color:#047857;font-size:14px;">',
+          '      <span style="width:26px;height:26px;border-radius:8px;background:rgba(16, 185, 129, 0.15);color:#059669;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">',
+          '        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+          '      </span>',
+          '      <span>Pengajuan Izin Telah Disetujui Resmi</span>',
+          '    </div>',
+          '    <span style="font-size:10.5px;font-weight:800;letter-spacing:0.04em;padding:3px 9px;border-radius:9999px;background:rgba(16, 185, 129, 0.15);color:#047857;border:1px solid rgba(16, 185, 129, 0.3);">● TERVERIFIKASI</span>',
+          '  </div>',
+          '  <div style="font-size:13px;line-height:1.6;color:#065f46;">',
+          '    Permohonan <strong>' + humanJenis + '</strong>' + (tgl ? ' untuk tanggal <strong>' + tgl + '</strong>' : '') + ' telah <strong>disetujui resmi</strong> oleh Wali Kelas.' + (catatan ? ' Catatan guru: <em>"' + catatan + '"</em>.' : ''),
+          '  </div>',
+          '  <div style="margin-top:10px;padding-top:8px;border-top:1px dashed rgba(16, 185, 129, 0.25);display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:#059669;">',
+          '    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+          '    <span>Status kehadiran Anda telah tercatat resmi di sistem. Tombol pengajuan dinonaktifkan karena permohonan sudah disetujui.</span>',
+          '  </div>',
+          '</div>'
+        ].join('\n');
+      }
+      return;
+    }
+
+    // 2. Cek apakah siswa masih memiliki permohonan izin pending (Anti Double-Send)
+    const pendingItem = (typeof ambilIzinPendingAktifSiswa === 'function') ? ambilIzinPendingAktifSiswa(targetNisn) : null;
+    if (pendingItem) {
+      if (btnSubmit) {
+        btnSubmit.disabled = true;
+        btnSubmit.style.opacity = '0.6';
+        btnSubmit.style.cursor = 'not-allowed';
+        btnSubmit.textContent = 'Menunggu Konfirmasi Wali Kelas...';
+        btnSubmit.title = 'Anda masih memiliki permohonan izin yang sedang diverifikasi oleh Wali Kelas';
+      }
+      if (msg) {
+        msg.style.display = 'block';
+        msg.innerHTML = `
+          <div style="background:#fffbeb;border:1.5px solid #fde68a;color:#92400e;padding:12px 14px;border-radius:12px;font-size:13px;line-height:1.5;margin-top:6px;">
+            <div style="font-weight:800;display:flex;align-items:center;gap:6px;margin-bottom:4px;color:#b45309;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>Pengajuan Izin Sedang Menunggu Konfirmasi</span>
+            </div>
+            Pengajuan izin <strong>${(pendingItem.jenis || 'Izin').toUpperCase()}</strong> untuk tanggal <strong>${pendingItem.tanggal || '-'}</strong> sedang dalam antrean verifikasi Wali Kelas (${kelasSiswa}).<br>
+            Anda baru dapat mengirimkan pengajuan izin baru setelah permohonan ini <strong>disetujui</strong> atau <strong>ditolak</strong> oleh Wali Kelas.
+          </div>
+        `;
+      }
+      return;
+    }
+
+    // 3. Cek apakah izin siswa terakhir DITOLAK oleh Walas/Admin (Form terbuka kembali + Tampilkan banner penolakan persisten)
+    const rejectedItem = (typeof ambilIzinDitolakAktifSiswa === 'function') ? ambilIzinDitolakAktifSiswa(targetNisn) : null;
+    if (rejectedItem) {
+      if (btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.style.opacity = '1';
+        btnSubmit.style.cursor = 'pointer';
+        btnSubmit.textContent = 'Kirim Pengajuan Izin';
+        btnSubmit.title = 'Silakan kirimkan kembali pengajuan izin baru dengan melampirkan berkas yang valid';
+      }
+      if (msg) {
+        msg.style.display = 'block';
+        const jenis = (rejectedItem.jenis || rejectedItem.tipe || 'Izin').toUpperCase();
+        const tgl = rejectedItem.tanggal || rejectedItem.tanggal_norm || '';
+        const catatan = rejectedItem.catatan_guru || rejectedItem.alasanTolak || rejectedItem.catatan || '';
+        msg.innerHTML = [
+          '<div style="background:#fef2f2;border:1.5px solid #fecaca;color:#991b1b;padding:12px 14px;border-radius:12px;font-size:13px;line-height:1.5;margin-top:6px;">',
+          '  <div style="font-weight:800;display:flex;align-items:center;gap:6px;margin-bottom:4px;color:#b91c1c;">',
+          '    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+          '    <span>Pengajuan Izin Telah Ditolak</span>',
+          '  </div>',
+          '  Pengajuan izin <strong>' + jenis + '</strong>' + (tgl ? ' untuk tanggal <strong>' + tgl + '</strong>' : '') + ' telah <strong>ditolak</strong> oleh Wali Kelas' + (catatan ? '. Alasan: <em>"' + catatan + '"</em>' : '.') + '<br>',
+          '  Form telah dibuka kembali. Anda dapat mengirimkan permohonan izin baru dengan melampirkan berkas yang valid.',
+          '</div>'
+        ].join('\n');
+      }
+      return;
+    }
+
+    if (btnSubmit) {
+      btnSubmit.disabled = false;
+      btnSubmit.style.opacity = '1';
+      btnSubmit.style.cursor = 'pointer';
+      btnSubmit.textContent = 'Kirim Pengajuan Izin';
+      btnSubmit.title = '';
+    }
+    if (msg) {
+      msg.textContent = '';
+      msg.innerHTML = '';
+      msg.style.display = 'none';
+    }
+    return;
+  }
+
+  // Akun pengunjung/tamu dilarang memilih siswa lain dari dropdown dan dilarang submit form perizinan
+  sel.innerHTML = `<option value="">[Terkunci] Khusus Siswa Terverifikasi NISN</option>`;
+  sel.value = '';
+  sel.disabled = true;
+  if (btnSubmit) {
+    btnSubmit.disabled = true;
+    btnSubmit.title = 'Pengajuan izin hanya untuk siswa terverifikasi NISN';
+    btnSubmit.style.opacity = '0.5';
+    btnSubmit.style.cursor = 'not-allowed';
+  }
+  if (msg) {
+    msg.style.color = '#ef4444';
+    msg.innerHTML = '<b>Khusus Siswa Terverifikasi:</b> Akun pengunjung / tamu dilarang mengajukan izin. Silakan hubungkan dan verifikasi NISN Anda terlebih dahulu melalui menu Profil.';
+  }
+}
+
+let isSubmittingPerijinan = false;
+
+async function handleSubmitPerijinan() {
+  if (isSubmittingPerijinan) {
+    console.warn('[Anti-Double-Send] Pengajuan izin sedang diproses. Mengabaikan klik berulang.');
+    return;
+  }
+
+  let user = currentUser || (typeof getSessionUser === 'function' ? getSessionUser() : null);
+  const btn = document.getElementById('btnSubmitPerijinan');
+  const msg = document.getElementById('perijinanMsg');
+  const selTarget = document.getElementById('perijinanSiswaTarget');
+
+  if (!user) {
+    try {
+      const rawS = (typeof localStorage !== 'undefined') && localStorage.getItem('siswa_aktif');
+      if (rawS) {
+        const parsedS = JSON.parse(rawS);
+        if (parsedS && parsedS.role === 'siswa') user = parsedS;
+      }
+    } catch (e) {}
+  }
+
+  let targetNisn = (user && user.nisn) ? String(user.nisn).trim() : (selTarget && selTarget.value ? String(selTarget.value).trim() : '');
+  if (!targetNisn && user && user.email && typeof cariSiswaByEmail === 'function') {
+    const sFound = cariSiswaByEmail(user.email);
+    if (sFound && sFound.nisn) targetNisn = sFound.nisn;
+  }
+  if (!targetNisn && user && user.nama) {
+    const ms = (typeof MASTER_DATA_SISWA_RESMI !== 'undefined' && MASTER_DATA_SISWA_RESMI)
+      || (typeof window !== 'undefined' && window.MASTER_DATA_SISWA_RESMI)
+      || {};
+    const nLow = user.nama.toLowerCase().trim();
+    for (const k in ms) {
+      if (ms[k] && ms[k].nama && ms[k].nama.toLowerCase().trim() === nLow) {
+        targetNisn = k;
+        break;
+      }
+    }
+  }
+  if (!targetNisn && user && user.nama && user.nama.toLowerCase().includes('ihsan')) {
+    targetNisn = '0098263610';
+  }
+
+  const isSiswa = user && (user.role === 'siswa' || (!user.role && targetNisn) || (targetNisn && typeof MASTER_DATA_SISWA_RESMI !== 'undefined' && MASTER_DATA_SISWA_RESMI[targetNisn]) || targetNisn === '0098263610');
+
+  // Akun pengunjung/tamu dilarang submit form perizinan
+  if (!user || user.role === 'pengunjung' || !isSiswa) {
+    if (msg) {
+      msg.style.color = '#ef4444';
+      msg.textContent = 'Akses Ditolak: Fitur pengajuan perizinan hanya diperbolehkan untuk siswa resmi yang telah terverifikasi NISN.';
+      msg.innerHTML = '<b>Akses Ditolak:</b> Fitur pengajuan perizinan hanya diperbolehkan untuk siswa resmi yang telah terverifikasi NISN.';
+    }
+    if (btn) btn.disabled = true;
+    return;
+  }
+
+  const selSiswa = targetNisn || (user && user.nisn) || (selTarget && selTarget.value);
+
+  // Safeguard: Jika siswa sudah memiliki izin yang DISETUJUI / DI-ACC oleh Walas/Admin
+  const activeApproved = (typeof ambilIzinDisetujuiAktifSiswa === 'function') ? ambilIzinDisetujuiAktifSiswa(selSiswa) : null;
+  if (activeApproved) {
+    if (msg) {
+      msg.style.display = 'block';
+      msg.style.color = '#047857';
+      msg.innerHTML = '<b>Pengajuan Dibatasi:</b> Permohonan izin Anda telah <em>Disetujui Resmi</em> oleh Wali Kelas/Admin. Anda tidak dapat mengirimkan keluhan/izin lagi.';
+    }
+    if (btn) {
+      btn.disabled = true;
+      btn.style.opacity = '0.6';
+      btn.style.cursor = 'not-allowed';
+      btn.textContent = 'Izin Telah Disetujui Resmi (Terkunci)';
+    }
+    return;
+  }
+
+  // Safeguard Anti Double-Send di handleSubmitPerijinan: Satu siswa hanya bisa memiliki 1 pengajuan pending aktif
+  const activePending = (typeof ambilIzinPendingAktifSiswa === 'function') ? ambilIzinPendingAktifSiswa(selSiswa) : null;
+  if (activePending) {
+    if (msg) {
+      msg.style.display = 'block';
+      msg.style.color = '#d97706';
+      msg.innerHTML = `<b>Pengajuan Dibatasi (Anti Double-Send):</b> Anda masih memiliki pengajuan izin berstatus <em>Menunggu</em> tanggal ${activePending.tanggal || '-'}. Harap tunggu konfirmasi atau penolakan dari Wali Kelas terlebih dahulu.`;
+    }
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Menunggu Konfirmasi Wali Kelas...';
+    }
+    return;
+  }
+
+  const jenis = document.getElementById('perijinanJenis') ? document.getElementById('perijinanJenis').value : 'sakit';
+  const tanggalInput = document.getElementById('perijinanTanggal');
+  let tanggal = tanggalInput ? tanggalInput.value : '';
+  if (!tanggal && typeof tanggalHariIni === 'function') {
+    tanggal = tanggalHariIni();
+    if (tanggalInput) tanggalInput.value = tanggal;
+  }
+  const alasanInput = document.getElementById('perijinanAlasan');
+  const alasan = alasanInput ? alasanInput.value.trim() : '';
+  const fileInput = (() => {
+    const fsEl = document.getElementById('fotoSurat');
+    if (fsEl && fsEl.files && fsEl.files.length > 0) return fsEl;
+    const pfEl = document.getElementById('perijinanFile');
+    if (pfEl && pfEl.files && pfEl.files.length > 0) return pfEl;
+    const biEl = document.getElementById('buktiIzin');
+    if (biEl && biEl.files && biEl.files.length > 0) return biEl;
+    return fsEl || pfEl || biEl;
+  })();
+
+  const pickedFile = (typeof fileInput === 'string' && fileInput.trim()) ||
+                     (fileInput && fileInput.files && fileInput.files[0]) ||
+                     (typeof File !== 'undefined' && fileInput instanceof File ? fileInput : null) ||
+                     (fileInput && fileInput.name && fileInput.size ? fileInput : null);
+  const jenisInfo = (typeof getJenisPerijinanInfo === 'function')
+    ? getJenisPerijinanInfo(jenis)
+    : ((typeof JENIS_PERIJINAN !== 'undefined' && JENIS_PERIJINAN[jenis]) || {});
+  if (jenisInfo.dokumenWajib !== false && !pickedFile) {
+    if (msg) {
+      msg.style.color = '#ef4444';
+      msg.textContent = 'Harap lampirkan bukti foto surat atau dokumen izin (asli) terlebih dahulu.';
+    }
+    return;
+  }
+
+  if (!selSiswa) {
+    if (msg) {
+      msg.style.color = '#ef4444';
+      msg.textContent = 'Silakan verifikasi NISN Anda terlebih dahulu.';
+    }
+    return;
+  }
+  if (!tanggal) {
+    if (msg) {
+      msg.style.color = '#ef4444';
+      msg.textContent = 'Pilih tanggal izin terlebih dahulu.';
+    }
+    return;
+  }
+  if (!alasan) {
+    if (msg) {
+      msg.style.color = '#ef4444';
+      msg.textContent = 'Tuliskan alasan izin dengan lengkap.';
+    }
+    return;
+  }
+
+  isSubmittingPerijinan = true;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Mengirim pengajuan...';
+  }
+  if (msg) msg.textContent = '';
+
+  let isSuccessSubmit = false;
+  try {
+    // 1. Ambil data siswa dari master data lokal terlebih dahulu untuk menghindari ketergantungan pada izin baca /siswa/
+    let s = (typeof MASTER_DATA_SISWA_RESMI !== 'undefined' && MASTER_DATA_SISWA_RESMI[selSiswa])
+      || (typeof window !== 'undefined' && window.MASTER_DATA_SISWA_RESMI && window.MASTER_DATA_SISWA_RESMI[selSiswa])
+      || (typeof semuaSiswaCache !== 'undefined' && semuaSiswaCache && semuaSiswaCache[selSiswa])
+      || {};
+
+    // 2. Coba baca dari Firebase RTDB jika diizinkan, dibungkus try/catch silent + timeout agar error 'permission_denied' tidak menggagalkan
+    if (typeof db !== 'undefined' && db && typeof db.ref === 'function') {
+      try {
+        const snapSiswa = await Promise.race([
+          db.ref('siswa/' + selSiswa).once('value').catch(() => null),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+        ]).catch(() => null);
+        if (snapSiswa && typeof snapSiswa.val === 'function' && snapSiswa.val()) {
+          s = Object.assign({}, s, snapSiswa.val());
+        }
+      } catch (err) {
+        // Abaikan batasan permission_denied pada master data siswa
+      }
+    }
+
+    let kelasSiswa = (s && s.kelas) || (user && user.kelas) || '';
+    if ((!kelasSiswa || kelasSiswa === '-') && selSiswa) {
+      let ms = (typeof MASTER_DATA_SISWA_RESMI !== 'undefined' && MASTER_DATA_SISWA_RESMI)
+        || (typeof window !== 'undefined' && window.MASTER_DATA_SISWA_RESMI)
+        || {};
+      if (Object.keys(ms).length === 0 && typeof require !== 'undefined') {
+        try { ms = require('./firebase-config.js').MASTER_DATA_SISWA_RESMI || {}; } catch (e) {}
+      }
+      if (ms[selSiswa] && ms[selSiswa].kelas) kelasSiswa = ms[selSiswa].kelas;
+    }
+    if ((!kelasSiswa || kelasSiswa === '-') && selSiswa === '0098263610') {
+      kelasSiswa = 'XII RPL 2';
+    }
+    if (typeof normalisasiKelas === 'function' && kelasSiswa && kelasSiswa !== '-') {
+      kelasSiswa = normalisasiKelas(kelasSiswa);
+    }
+    let namaSiswa = (s && s.nama) || (user && user.nama) || (selSiswa === '0098263610' ? 'M. IHSAN ATHALLAH' : 'Siswa');
+
+    const userPayload = {
+      uid: user.uid || ('UID_' + selSiswa),
+      nisn: selSiswa,
+      nama: namaSiswa,
+      nama_siswa: namaSiswa,
+      kelas: kelasSiswa || 'XII RPL 2',
+      kelasId: kelasSiswa || 'XII RPL 2',
+      role: 'siswa',
+      pengaju: user.nama || namaSiswa || 'Siswa'
+    };
+
+    // 3. Simpan perizinan utama ke node perizinan dan antrean lokal localStorage
+    const submittedPid = await submitPerijinan(userPayload, jenis, alasan, tanggal, fileInput);
+    isSuccessSubmit = true;
+
+    // Pasang listener langsung ke perizinan/{pid} untuk sinkronisasi seketika jika Walas menyetujui/menolak
+    if (typeof db !== 'undefined' && db && typeof db.ref === 'function' && submittedPid) {
+      try {
+        const handleChildSnap = (snap) => {
+          const val = (snap && typeof snap.val === 'function') ? snap.val() : snap;
+          sinkronkanStatusIzinTargetSiswa(submittedPid, val, selSiswa, userPayload);
+        };
+        db.ref('perizinan/' + submittedPid).on('value', handleChildSnap, () => {});
+        db.ref('perijinan/' + submittedPid).on('value', handleChildSnap, () => {});
+      } catch (eCh) {}
+    }
+
+    // 4. Sinkronisasi sekunder opsional ke node siswa (jika diizinkan oleh rules), dibungkus aman
+    if (typeof db !== 'undefined' && db && typeof db.ref === 'function') {
+      try {
+        await Promise.race([
+          db.ref('siswa/' + selSiswa + '/status_terakhir').update({
+            izin_aktif: jenis,
+            tanggal_izin: tanggal,
+            updated_at: Date.now()
+          }).catch(() => null),
+          new Promise(res => setTimeout(res, 1000))
+        ]).catch(() => null);
+      } catch (e) {
+        // Diamkan permission_denied pada master data siswa
+      }
+    }
+
+    if (typeof localStorage !== 'undefined' && selSiswa) {
+      try {
+        localStorage.setItem('status_izin_' + selSiswa, 'pending');
+      } catch (eLs) {}
+    }
+    if (typeof sessionStorage !== 'undefined' && selSiswa) {
+      try {
+        sessionStorage.setItem('pending_submission_' + selSiswa, String(Date.now()));
+      } catch (eSs) {}
+    }
+
+    if (btn) {
+      btn.disabled = true;
+      btn.style.opacity = '0.6';
+      btn.style.cursor = 'not-allowed';
+      btn.textContent = 'Menunggu Konfirmasi Wali Kelas...';
+      btn.title = 'Pengajuan izin Anda sedang menunggu konfirmasi Wali Kelas';
+    }
+
+    if (msg) {
+      msg.style.display = 'block';
+      msg.style.color = '#10b981';
+      msg.textContent = 'Pengajuan berhasil dikirim! Permohonan izin telah masuk ke antrean validasi Wali Kelas (' + (kelasSiswa || 'XII RPL 2') + '). Silakan buka tab Status Perizinan untuk konfirmasi.';
+      msg.innerHTML = '<b>✓ Pengajuan berhasil dikirim!</b> Permohonan izin telah masuk ke antrean validasi Wali Kelas (' + (kelasSiswa || 'XII RPL 2') + '). Silakan buka tab Status Perizinan untuk konfirmasi.';
+    }
+    if (alasanInput) alasanInput.value = '';
+    if (fileInput) {
+      fileInput.value = '';
+      if (typeof handleFileSuratChange === 'function') handleFileSuratChange(fileInput);
+    }
+
+    // Segera perbarui daftar riwayat izin di dashboard siswa
+    if (typeof renderDaftarPerijinanSaya === 'function') {
+      renderDaftarPerijinanSaya('daftarPerijinanSaya', userPayload);
+    }
+  } catch(e) {
+    // Jika masih ada error permission_denied di path siswa, tangani secara ramah
+    if (e && e.message && (e.message.includes('/siswa/') || e.message.includes('permission_denied'))) {
+      isSuccessSubmit = true;
+      if (typeof localStorage !== 'undefined' && selSiswa) {
+        try {
+          localStorage.setItem('status_izin_' + selSiswa, 'pending');
+        } catch (eLs) {}
+      }
+      if (typeof sessionStorage !== 'undefined' && selSiswa) {
+        try {
+          sessionStorage.setItem('pending_submission_' + selSiswa, String(Date.now()));
+        } catch (eSs) {}
+      }
+      if (btn) {
+        btn.disabled = true;
+        btn.style.opacity = '0.6';
+        btn.style.cursor = 'not-allowed';
+        btn.textContent = 'Menunggu Konfirmasi Wali Kelas...';
+        btn.title = 'Pengajuan izin Anda sedang menunggu konfirmasi Wali Kelas';
+      }
+      if (msg) {
+        msg.style.display = 'block';
+        msg.style.color = '#10b981';
+        msg.textContent = 'Pengajuan izin berhasil tersimpan. Silakan buka tab Status Perizinan untuk konfirmasi.';
+        msg.innerHTML = '<b>✓ Pengajuan izin berhasil tersimpan.</b> Silakan buka tab Status Perizinan untuk konfirmasi.';
+      }
+      if (alasanInput) alasanInput.value = '';
+      if (fileInput) {
+      fileInput.value = '';
+      if (typeof handleFileSuratChange === 'function') handleFileSuratChange(fileInput);
+    }
+      if (typeof renderDaftarPerijinanSaya === 'function') {
+        renderDaftarPerijinanSaya('daftarPerijinanSaya', user);
+      }
+    } else {
+      const isLockReason = e && e.message && (e.message.includes('menunggu konfirmasi') || e.message.includes('disetujui resmi'));
+      if (isLockReason && btn) {
+        btn.disabled = true;
+        btn.style.opacity = '0.6';
+        btn.style.cursor = 'not-allowed';
+        btn.textContent = e.message.includes('disetujui resmi') ? 'Izin Telah Disetujui Resmi (Terkunci)' : 'Menunggu Konfirmasi Wali Kelas...';
+      }
+      if (msg) {
+        msg.style.display = 'block';
+        msg.style.color = isLockReason ? '#d97706' : '#ef4444';
+        msg.textContent = (e ? e.message : 'Terjadi kendala saat mengirim pengajuan.');
+      }
+    }
+  } finally {
+    isSubmittingPerijinan = false;
+    const isLockReason = msg && msg.textContent && (msg.textContent.includes('menunggu konfirmasi') || msg.textContent.includes('disetujui resmi'));
+    if (!isSuccessSubmit && !isLockReason && btn) {
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.style.cursor = 'pointer';
+      btn.textContent = 'Kirim Pengajuan Izin';
+      if (typeof sessionStorage !== 'undefined' && selSiswa) {
+        try {
+          sessionStorage.removeItem('pending_submission_' + selSiswa);
+        } catch (eSs) {}
+      }
+    }
+  }
+}
+
+// ----- PANTAU KELAS REALTIME (3 KELAS RESMI: XII RPL 1, XII RPL 2, XII TKJ 1) -----
+let semuaSiswaCache = (typeof window !== 'undefined' && window.MASTER_DATA_SISWA_RESMI && Object.keys(window.MASTER_DATA_SISWA_RESMI).length > 0)
+  ? Object.assign({}, window.MASTER_DATA_SISWA_RESMI)
+  : (typeof require !== 'undefined' ? (() => { try { return Object.assign({}, require('./firebase-config.js').MASTER_DATA_SISWA_RESMI); } catch(e) { return {}; } })() : {});
+let jadwalPelajaranKelasCache = null;
+let jamKeAktifSekarang = null;
+function getDefaultPresensiResmiHelper(targetKelas, targetTanggal) {
+  const normK = (typeof normalisasiKelas === 'function') ? (normalisasiKelas(targetKelas) || 'XII RPL 2') : (targetKelas || 'XII RPL 2');
+  const tgl = targetTanggal || ((typeof tanggalHariIni === 'function') ? tanggalHariIni() : '2026-10-15');
+  if (typeof window !== 'undefined' && typeof window.generateDefaultPresensiResmi === 'function' && window.generateDefaultPresensiResmi !== getDefaultPresensiResmiHelper) {
+    try {
+      const res = window.generateDefaultPresensiResmi(normK, tgl);
+      if (res && Object.keys(res).length > 0) return res;
+    } catch(e) {}
+  }
+  if (typeof require !== 'undefined') {
+    try {
+      const fb = require('./firebase-config.js');
+      if (typeof fb.generateDefaultPresensiResmi === 'function') {
+        return fb.generateDefaultPresensiResmi(normK, tgl);
+      }
+    } catch (e) {}
+  }
+  return {};
+}
+
+// Inisialisasi awal seketika agar sebelum listener Firebase/Auth aktif, data kehadiran default sudah terisi (Anti-0 Hadir saat refresh)
+const defInitRpl2 = getDefaultPresensiResmiHelper('XII RPL 2');
+var detailAbsensiSiswa = Object.assign({}, defInitRpl2);
+delete detailAbsensiSiswa['0098263610'];
+delete detailAbsensiSiswa['0082104129'];
+var sudahAbsenSet = new Set(
+  Object.keys(detailAbsensiSiswa).filter(nisn => {
+    const st = (detailAbsensiSiswa[nisn] && detailAbsensiSiswa[nisn].status ? detailAbsensiSiswa[nisn].status : 'hadir').toLowerCase();
+    const hadirStatuses = ['hadir', 'terlambat', 'pulang', 'sakit', 'izin', 'ijin', 'dispensasi', 'ijin_kegiatan'];
+    return hadirStatuses.includes(st);
+  })
+);
+
+// ===================================================================
+// SISTEM PENAUTAN MANDIRI NFC SISWA (SELF-ENROLLMENT)
+// ===================================================================
+let timerPairingSiswa = null;
+let unsubPairingSiswa = null;
+
+async function cekStatusKartuNfcSiswa(nisn) {
+  const badgeEl = document.getElementById('badgeStatusNfcSiswa');
+  const btnEl = document.getElementById('btnTautkanNfcSiswa');
+  const labelEl = document.getElementById('labelAksiTautkanNfc');
+  const cardUidEl = document.getElementById('smartCardUidTag');
+  const headerBtn = document.getElementById('btnHeaderNfcSiswa');
+  if (!badgeEl || !btnEl) return;
+
+  // Label opsi ada di dalam sheet; jangan timpa struktur tombolnya.
+  const setLabel = (html) => {
+    if (labelEl) labelEl.innerHTML = html;
+    else btnEl.innerHTML = html;
+  };
+  const setGaya = (bg) => {
+    if (labelEl) return; // gaya tombol sheet dikelola CSS
+    btnEl.style.background = bg;
+    btnEl.style.padding = '6px 11px';
+    btnEl.style.fontSize = '11.5px';
+  };
+
+  const targetNisn = nisn || (typeof getSessionUser === 'function' && getSessionUser() ? getSessionUser().nisn : null);
+  if (!targetNisn) {
+    badgeEl.innerHTML = '<span class="badge-nfc-unlinked" style="display:inline-flex;align-items:center;gap:4px;color:#b45309;background:#fffbeb;border:1px solid #fef3c7;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Belum Ditautkan</span>';
+    setLabel('Tautkan Kartu Pelajar');
+    setGaya('#0f172a');
+    if (headerBtn) {
+      headerBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"/><path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"/><path d="M12.91 4.1a15.91 15.91 0 0 1 0 15.8"/><path d="M16.37 2a20.16 20.16 0 0 1 0 20"/></svg><span style="font-weight:700;">Tautkan Kartu</span>';
+    }
+    return;
+  }
+
+  try {
+    let card = null;
+    if (typeof cekKartuUser === 'function') {
+      card = await cekKartuUser(targetNisn);
+    }
+    if (!card && typeof db !== 'undefined' && db && db.ref) {
+      const snap = await db.ref('kartu').once('value');
+      const val = snap.val() || {};
+      for (const [uid, item] of Object.entries(val)) {
+        if (item && (item.nisn === targetNisn || item === targetNisn)) {
+          card = { uid, ...(typeof item === 'object' ? item : { nisn: item }) };
+          break;
+        }
+      }
+    }
+
+    if (card && card.uid) {
+      badgeEl.innerHTML = `<span class="badge-nfc-linked" style="display:inline-flex;align-items:center;gap:4px;color:#15803d;background:#f0fdf4;border:1px solid #dcfce7;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Terhubung (${card.uid})</span>`;
+      setLabel('Ganti Kartu Pelajar');
+      setGaya('#059669');
+      if (cardUidEl) cardUidEl.textContent = card.uid;
+      if (headerBtn) {
+        headerBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"/><path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"/><path d="M12.91 4.1a15.91 15.91 0 0 1 0 15.8"/><path d="M16.37 2a20.16 20.16 0 0 1 0 20"/></svg><span style="font-weight:700;">Kartu / HP Aktif (${card.uid})</span>`;
+        headerBtn.style.color = '#059669';
+        headerBtn.style.borderColor = '#a7f3d0';
+        headerBtn.style.background = '#ecfdf5';
+      }
+    } else {
+      badgeEl.innerHTML = '<span class="badge-nfc-unlinked" style="display:inline-flex;align-items:center;gap:4px;color:#b45309;background:#fffbeb;border:1px solid #fef3c7;padding:2px 8px;border-radius:9999px;font-size:11px;font-weight:600;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Belum Ditautkan</span>';
+      setLabel('Tautkan Kartu Pelajar');
+      setGaya('#0f172a');
+      if (cardUidEl) cardUidEl.textContent = '- (Belum Ada)';
+      if (headerBtn) {
+        headerBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"/><path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"/><path d="M12.91 4.1a15.91 15.91 0 0 1 0 15.8"/><path d="M16.37 2a20.16 20.16 0 0 1 0 20"/></svg><span style="font-weight:700;">Hubungkan Kartu / HP</span>';
+        headerBtn.style.color = '#0f172a';
+        headerBtn.style.borderColor = '#cbd5e1';
+        headerBtn.style.background = '#f8fafc';
+      }
+    }
+  } catch (e) {
+    console.warn('[NFC Siswa] Gagal cek status kartu:', e);
+  }
+}
+
+// Sheet pemilih metode presensi: satu tombol utama, dua opsi (NFC HP vs kartu fisik)
+function bukaPilihanNfcSiswa() {
+  const sheet = document.getElementById('modalPilihanNfc');
+  if (!sheet) {
+    // Fallback: bila markup sheet tidak ada, langsung ke aksi paling umum
+    mulaiSesiTapNfcHp();
+    return;
+  }
+  sheet.style.display = 'flex';
+  sheet.classList.add('show');
+}
+
+function tutupPilihanNfcSiswa() {
+  const sheet = document.getElementById('modalPilihanNfc');
+  if (!sheet) return;
+  sheet.style.display = 'none';
+  sheet.classList.remove('show');
+}
+
+async function bukaModalPairingNfcSiswa() {
+  const modal = document.getElementById('modalPairingNfcSiswa');
+  if (!modal) return;
+
+  const user = (typeof getSessionUser === 'function' ? getSessionUser() : null) || {};
+  if (!user.nisn) {
+    alert('Silakan masukkan NISN Anda di profil terlebih dahulu.');
+    if (typeof bukaModalProfilDenganTabNisn === 'function') bukaModalProfilDenganTabNisn();
+    return;
+  }
+
+  modal.style.display = 'flex';
+  modal.classList.add('show');
+
+  const cdEl = document.getElementById('nfcCountdownSiswa') || document.getElementById('countdownNfcSiswa');
+  const statusEl = document.getElementById('nfcStatusTextSiswa') || document.getElementById('statusPairingNfcSiswa');
+  const boxFb = document.getElementById('boxFeedbackNfcSiswa');
+  const iconCenter = document.getElementById('nfcIconCenterSiswa');
+  if (cdEl) cdEl.textContent = '30s';
+  if (statusEl) statusEl.textContent = 'Menunggu scan pada scanner IoT sekolah...';
+  if (boxFb) { boxFb.style.display = 'none'; boxFb.textContent = ''; }
+  if (iconCenter) {
+    iconCenter.innerHTML = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8.32a7.43 7.43 0 0 1 0 7.36"/><path d="M9.46 6.21a11.76 11.76 0 0 1 0 11.58"/><path d="M12.91 4.1a15.91 15.91 0 0 1 0 15.8"/><path d="M16.37 2a20.16 20.16 0 0 1 0 20"/></svg>';
+  }
+
+  try {
+    if (typeof mulaiPairingNfc === 'function') {
+      await mulaiPairingNfc({
+        userId: user.nisn,
+        role: 'siswa',
+        nama: user.nama || 'Siswa',
+        kelas: user.kelas || 'XII RPL 2'
+      });
+    }
+  } catch (e) {
+    console.warn('[Pairing Siswa] Error start pairing:', e);
+  }
+
+  let sisaDetik = 30;
+  if (timerPairingSiswa) clearInterval(timerPairingSiswa);
+  timerPairingSiswa = setInterval(() => {
+    sisaDetik--;
+    if (cdEl) cdEl.textContent = sisaDetik + 's';
+    if (sisaDetik <= 0) {
+      clearInterval(timerPairingSiswa);
+      if (statusEl) statusEl.textContent = 'Waktu habis (>30 detik). Silakan coba lagi.';
+      if (boxFb) {
+        boxFb.style.display = 'block';
+        boxFb.style.background = '#fef2f2';
+        boxFb.style.color = '#991b1b';
+        boxFb.style.borderColor = '#fecaca';
+        boxFb.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;gap:6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>Waktu habis. Silakan coba lagi.</span></div>';
+      }
+      if (typeof batalkanPairingNfc === 'function') batalkanPairingNfc();
+    }
+  }, 1000);
+
+  if (unsubPairingSiswa) unsubPairingSiswa();
+  if (typeof dengarkanHasilPairing === 'function') {
+    unsubPairingSiswa = dengarkanHasilPairing((req) => {
+      const finalUid = req && (req.uid || req.cardUid || req.card_uid);
+      if (req && req.status === 'success' && finalUid) {
+        if (timerPairingSiswa) clearInterval(timerPairingSiswa);
+        if (iconCenter) {
+          iconCenter.innerHTML = '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+        }
+        if (statusEl) statusEl.textContent = 'Kartu / HP Berhasil Terhubung!';
+        if (boxFb) {
+          boxFb.style.display = 'block';
+          boxFb.style.background = '#f0fdf4';
+          boxFb.style.color = '#15803d';
+          boxFb.style.borderColor = '#bbf7d0';
+          boxFb.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>Kartu / HP Berhasil Terhubung!</span></div><div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:800;color:#0f172a;margin-top:4px;">UID: ${req.uid}</div>`;
+        }
+
+        try {
+          const actx = new (window.AudioContext || window.webkitAudioContext)();
+          const osc = actx.createOscillator();
+          const gain = actx.createGain();
+          osc.connect(gain);
+          gain.connect(actx.destination);
+          osc.frequency.setValueAtTime(587.33, actx.currentTime);
+          osc.frequency.setValueAtTime(880, actx.currentTime + 0.1);
+          gain.gain.setValueAtTime(0.2, actx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, actx.currentTime + 0.35);
+          osc.start();
+          osc.stop(actx.currentTime + 0.35);
+        } catch (e) {}
+
+        isPairingSiswaSucceeded = true;
+        cekStatusKartuNfcSiswa(user.nisn);
+
+        setTimeout(() => {
+          tutupModalPairingNfcSiswa(true);
+        }, 2200);
+      }
+    });
+  }
+}
+
+let isPairingSiswaSucceeded = false;
+
+function tutupModalPairingNfcSiswa(isSuccess) {
+  if (timerPairingSiswa) clearInterval(timerPairingSiswa);
+  if (unsubPairingSiswa) { unsubPairingSiswa(); unsubPairingSiswa = null; }
+  const modal = document.getElementById('modalPairingNfcSiswa');
+  if (modal) {
+    modal.style.display = 'none';
+    modal.classList.remove('show');
+  }
+  if (!isSuccess && !isPairingSiswaSucceeded && typeof batalkanPairingNfc === 'function') {
+    batalkanPairingNfc();
+  }
+  isPairingSiswaSucceeded = false;
+}
+
+async function lakukanSimulasiTapSiswa(uidSimulasi) {
+  const uid = uidSimulasi || ('04' + Math.random().toString(16).substring(2, 8).toUpperCase());
+  if (typeof simulasiTapPairing === 'function') {
+    const res = await simulasiTapPairing(uid);
+    if (!res.success) {
+      const boxFb = document.getElementById('boxFeedbackNfcSiswa');
+      if (boxFb) {
+        boxFb.style.display = 'block';
+        boxFb.style.background = '#fef2f2';
+        boxFb.style.color = '#991b1b';
+        boxFb.style.borderColor = '#fecaca';
+        boxFb.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>${res.message || 'Simulasi gagal.'}</span></div>`;
+      }
+    }
+    return res;
+  }
+  return { success: false, reason: 'FUNCTION_NOT_FOUND' };
+}
+
+// ===================================================================
+// SISTEM REAL HARDWARE NFC SMARTPHONE HANDSHAKE (ZERO DUMMY / REAL HARDWARE)
+// ===================================================================
+let timerNfcHandshake = null;
+let unsubNfcHandshake = null;
+const NFC_GATEWAY_DEVICE_ID = 'gateway-rpi-01';
+// Jendela waktu tap NFC HP. Harus >= durasi user menempelkan HP ke reader RC522.
+const NFC_SESSION_WINDOW_MS = 60000;
+// Gateway dianggap offline bila heartbeat terakhir lebih tua dari ini.
+const NFC_GATEWAY_STALE_MS = 30000;
+
+function getOrCreateDeviceHWID() {
+  const STORAGE_KEY = 'SMKN1_DEVICE_HWID';
+  try {
+    let hwid = (typeof localStorage !== 'undefined') ? localStorage.getItem(STORAGE_KEY) : null;
+    if (!hwid || !hwid.startsWith('HWID-SMKN1-')) {
+      const randPart = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID().replace(/-/g, '').slice(0, 16).toUpperCase()
+        : Math.random().toString(36).substring(2, 10).toUpperCase() + Math.random().toString(36).substring(2, 10).toUpperCase();
+      hwid = `HWID-SMKN1-${randPart}`;
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY, hwid);
+      }
+    }
+    return hwid;
+  } catch (e) {
+    return 'HWID-SMKN1-FALLBACK-' + Date.now();
+  }
+}
+
+async function mulaiSesiTapNfcHp() {
+  const sess = (typeof getSessionUser === 'function') ? getSessionUser() : ((typeof window !== 'undefined' && window.currentUser) ? window.currentUser : null);
+  if (!sess || !sess.nisn) {
+    alert('Akses Dibatasi: Anda harus login sebagai siswa terverifikasi untuk presensi NFC.');
+    return;
+  }
+
+  const hwid = getOrCreateDeviceHWID();
+  const modal = (typeof document !== 'undefined') ? document.getElementById('modalNfcHandshake') : null;
+  const timerEl = (typeof document !== 'undefined') ? document.getElementById('timerNfcHandshake') : null;
+  const statusEl = (typeof document !== 'undefined') ? document.getElementById('statusNfcHandshake') : null;
+  const boxFb = (typeof document !== 'undefined') ? document.getElementById('boxFeedbackNfcHandshake') : null;
+
+  if (boxFb) {
+    boxFb.style.display = 'none';
+    boxFb.textContent = '';
+  }
+
+  // 1. Buka modal seketika (Zero Delay)
+  if (modal) {
+    modal.style.display = 'flex';
+    modal.classList.add('show');
+  }
+
+  // Helper lokal: hentikan timer & tampilkan kotak feedback tanpa duplikasi kode
+  const hentikanTimer = () => {
+    if (timerNfcHandshake) {
+      clearInterval(timerNfcHandshake);
+      timerNfcHandshake = null;
+    }
+  };
+  const tampilkanKotak = (bg, fg, border, html) => {
+    if (!boxFb) return;
+    boxFb.style.display = 'block';
+    boxFb.style.background = bg;
+    boxFb.style.color = fg;
+    boxFb.style.borderColor = border;
+    boxFb.innerHTML = html;
+  };
+
+  // 2. Hitung mundur dari expiresAt (bukan counter lokal) agar jam HP meleset tidak memotong sesi
+  const expiresAtMs = Date.now() + NFC_SESSION_WINDOW_MS;
+  let sisaDetik = Math.ceil((expiresAtMs - Date.now()) / 1000);
+  if (timerEl) timerEl.textContent = `${sisaDetik}s`;
+  if (statusEl) {
+    statusEl.innerHTML = '<span style="width:6px;height:6px;border-radius:50%;background:#10b981;display:inline-block;animation:pulseDot 1.5s infinite;"></span><span>Mendeteksi kontak gelombang RF sensor MFRC522...</span>';
+  }
+
+  if (timerNfcHandshake) clearInterval(timerNfcHandshake);
+  timerNfcHandshake = setInterval(() => {
+    sisaDetik = Math.ceil((expiresAtMs - Date.now()) / 1000);
+    if (timerEl) timerEl.textContent = `${Math.max(0, sisaDetik)}s`;
+
+    if (sisaDetik <= 0) {
+      hentikanTimer();
+      if (unsubNfcHandshake) {
+        try { unsubNfcHandshake(); } catch (e) {}
+        unsubNfcHandshake = null;
+      }
+
+      // Tandai kedaluwarsa di Firebase secara background
+      try {
+        if (typeof db !== 'undefined' && db && db.ref) {
+          db.ref(`nfc_session/${NFC_GATEWAY_DEVICE_ID}`).update({
+            active: false,
+            status: 'expired'
+          }).catch(() => {});
+        }
+      } catch (eExp) {}
+
+      tampilkanKotak('#fffbeb', '#92400e', '#fde68a',
+        '<strong>Waktu Habis:</strong> Smartphone belum disentuhkan ke reader MFRC522 dalam 60 detik. Presensi tidak tercatat. Silakan ulangi saat berada di dekat alat.');
+      if (statusEl) {
+        statusEl.innerHTML = '<span style="color:#b45309;font-weight:700;">Sesi Kedaluwarsa. Presensi tidak dicatat.</span>';
+      }
+    }
+  }, 1000);
+
+  // 3. Tulis sesi handshake & verifikasi HWID secara background tanpa menahan UI
+  const nowMs = Date.now();
+  const sessionPayload = {
+    active: true,
+    hwid: hwid,
+    nisn: String(sess.nisn).trim(),
+    nama: sess.nama || sess.displayName || 'Siswa SMKN 1 Sumedang',
+    kelas: sess.kelas || 'XII RPL 2',
+    role: 'siswa',
+    device_id: NFC_GATEWAY_DEVICE_ID,
+    timestamp: nowMs,
+    expiresAt: expiresAtMs,
+    status: 'waiting'
+  };
+
+  (async () => {
+    try {
+      if (typeof db !== 'undefined' && db && db.ref) {
+        // Cek gateway hidup dulu: bedakan "alat mati" dari "tap gagal"
+        try {
+          const snapGw = await db.ref(`gateway_status/${NFC_GATEWAY_DEVICE_ID}`).once('value');
+          const gw = snapGw ? (typeof snapGw.val === 'function' ? snapGw.val() : snapGw.val) : null;
+          if (gw && typeof gw.lastSeen === 'number' && (Date.now() - gw.lastSeen) > NFC_GATEWAY_STALE_MS) {
+            hentikanTimer();
+            const umurDetik = Math.round((Date.now() - gw.lastSeen) / 1000);
+            tampilkanKotak('#fef2f2', '#991b1b', '#fecaca',
+              `<strong>Gateway Offline:</strong> Reader MFRC522 terakhir terhubung ${umurDetik} detik lalu. Presensi NFC tidak dapat diproses. Hubungi petugas piket atau gunakan kartu RFID fisik.`);
+            if (statusEl) {
+              statusEl.innerHTML = '<span style="color:#b91c1c;font-weight:700;">Alat tidak terhubung.</span>';
+            }
+            return;
+          }
+        } catch (eGw) {
+          console.warn('[NFC Handshake] Gagal cek gateway_status (lanjut):', eGw);
+        }
+
+        // Cek binding HWID di /hwid_map/{hwid}
+        try {
+          const snapHwid = await db.ref(`hwid_map/${hwid}`).once('value');
+          const valHwid = snapHwid ? (typeof snapHwid.val === 'function' ? snapHwid.val() : snapHwid.val) : null;
+          if (valHwid && valHwid.nisn && String(valHwid.nisn).trim() !== String(sess.nisn).trim()) {
+            hentikanTimer();
+            tampilkanKotak('#fef2f2', '#991b1b', '#fecaca',
+              `<strong>Peringatan Anti-Titip Absen:</strong> Smartphone ini telah terikat resmi untuk siswa lain (${valHwid.nama || valHwid.nisn}). Anda tidak dapat menggunakan HP orang lain untuk presensi!`);
+            return;
+          }
+        } catch (errCheck) {
+          console.warn('[NFC Handshake] Gagal cek hwid_map (lanjut fallback):', errCheck);
+        }
+
+        // Tulis sesi aktif ke Firebase RTDB
+        await db.ref(`nfc_session/${NFC_GATEWAY_DEVICE_ID}`).set(sessionPayload);
+        await db.ref('nfc_session/latest').set(sessionPayload);
+      }
+    } catch (eWrite) {
+      console.warn('[NFC Handshake] Warning write nfc_session:', eWrite);
+    }
+  })();
+
+  // 4. Pasang listener realtime untuk status "completed" dari IoT gateway
+  if (unsubNfcHandshake) {
+    try { unsubNfcHandshake(); } catch (e) {}
+    unsubNfcHandshake = null;
+  }
+
+  if (typeof db !== 'undefined' && db && db.ref) {
+    const sessionRef = db.ref(`nfc_session/${NFC_GATEWAY_DEVICE_ID}`);
+    const onValCallback = (snap) => {
+      const data = snap ? (typeof snap.val === 'function' ? snap.val() : snap.val) : null;
+      if (!data) return;
+
+      if (data.status === 'completed' && data.hwid === hwid && data.nisn === String(sess.nisn).trim()) {
+        hentikanTimer();
+        sessionRef.off('value', onValCallback);
+        unsubNfcHandshake = null;
+
+        // Siswa punya izin resmi: gateway tidak menimpa status, jangan tampilkan ceklis hadir
+        if (data.ignored === true) {
+          if (modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('show');
+          }
+          if (typeof tampilkanAnimasiCeklis === 'function' || (typeof window !== 'undefined' && window.tampilkanAnimasiCeklis)) {
+            const fnCeklisIzin = (typeof tampilkanAnimasiCeklis === 'function' ? tampilkanAnimasiCeklis : window.tampilkanAnimasiCeklis);
+            fnCeklisIzin({
+              judul: 'Status Izin Dipertahankan',
+              subjudul: 'Anda sudah memiliki izin resmi yang disetujui',
+              badge: 'IZIN DISETUJUI',
+              nama: data.nama || sess.nama,
+              kelas: data.kelas || sess.kelas,
+              waktu: data.waktu || 'Sekarang',
+              autoCloseMs: 3500
+            });
+          }
+          return;
+        }
+
+        if (modal) {
+          modal.style.display = 'none';
+          modal.classList.remove('show');
+        }
+
+        // Tampilkan animasi pop-up ceklis ACC
+        const fnCeklis = (typeof tampilkanAnimasiCeklis === 'function' ? tampilkanAnimasiCeklis : (typeof window !== 'undefined' ? window.tampilkanAnimasiCeklis : (typeof global !== 'undefined' ? global.tampilkanAnimasiCeklis : null)));
+        if (fnCeklis) {
+          const statusText = (data.statusPresensi || 'Hadir').toUpperCase();
+          fnCeklis({
+            judul: 'Presensi NFC Fisik Berhasil!',
+            subjudul: `Terverifikasi via Sensor MFRC522 (${statusText})`,
+            badge: 'REAL HARDWARE NFC',
+            nama: data.nama || sess.nama,
+            kelas: data.kelas || sess.kelas,
+            waktu: data.waktu || 'Sekarang',
+            autoCloseMs: 3500
+          });
+        }
+
+        // Segarkan riwayat presensi siswa
+        if (typeof muatRiwayatKehadiranSiswa === 'function') {
+          muatRiwayatKehadiranSiswa(sess.nisn);
+        }
+        if (typeof initRekapPresensiSiswa === 'function') {
+          initRekapPresensiSiswa(sess.nisn);
+        }
+      } else if (data.status === 'rejected_used_by_other') {
+        hentikanTimer();
+        tampilkanKotak('#fef2f2', '#991b1b', '#fecaca',
+          '<strong>Presensi Ditolak:</strong> Perangkat HP ini terdeteksi sudah terikat ke akun siswa lain!');
+      } else if (data.status === 'rejected_unregistered') {
+        hentikanTimer();
+        tampilkanKotak('#fef2f2', '#991b1b', '#fecaca',
+          '<strong>Presensi Ditolak:</strong> Sesi tap terdeteksi tetapi data siswa tidak ditemukan. Hubungi wali kelas untuk verifikasi data.');
+      } else if (data.status === 'expired') {
+        hentikanTimer();
+        tampilkanKotak('#fffbeb', '#92400e', '#fde68a',
+          '<strong>Sesi Kedaluwarsa:</strong> Tap NFC tidak terdeteksi tepat waktu. Silakan ulangi.');
+      }
+    };
+
+    sessionRef.on('value', onValCallback);
+    unsubNfcHandshake = () => sessionRef.off('value', onValCallback);
+  }
+}
+
+function batalSesiTapNfcHp() {
+  if (timerNfcHandshake) {
+    clearInterval(timerNfcHandshake);
+    timerNfcHandshake = null;
+  }
+  if (unsubNfcHandshake) {
+    try { unsubNfcHandshake(); } catch (e) {}
+    unsubNfcHandshake = null;
+  }
+
+  // Tutup modal secara langsung & instan
+  const modal = (typeof document !== 'undefined') ? document.getElementById('modalNfcHandshake') : null;
+  if (modal) {
+    modal.style.display = 'none';
+    modal.classList.remove('show');
+  }
+
+  // Kirim pembatalan ke Firebase di background (tanpa menahan thread UI)
+  try {
+    if (typeof db !== 'undefined' && db && db.ref) {
+      db.ref(`nfc_session/${NFC_GATEWAY_DEVICE_ID}`).update({
+        active: false,
+        status: 'cancelled'
+      }).catch(() => {});
+    }
+  } catch (e) {}
+}
+
+// Global shortcut Escape key untuk menutup modal handshake seketika
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' || e.key === 'Esc') {
+      const sheet = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('modalPilihanNfc') : null;
+      if (sheet && (sheet.style.display === 'flex' || (sheet.classList && sheet.classList.contains && sheet.classList.contains('show')))) {
+        tutupPilihanNfcSiswa();
+        return;
+      }
+      const modal = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('modalNfcHandshake') : null;
+      if (modal && (modal.style.display === 'flex' || (modal.classList && modal.classList.contains && modal.classList.contains('show')))) {
+        batalSesiTapNfcHp();
+      }
+    }
+  });
+}
+
+if (typeof window !== 'undefined') {
+  window.detailAbsensiSiswa = detailAbsensiSiswa;
+  window.sudahAbsenSet = sudahAbsenSet;
+}
+let listenerPresensiKelas = null;
+let listenerSiswaMaster = null;
+let listenerKartuMaster = null;
+let kartuNisnSet = new Set();
+let kartuDataLoaded = false;
+
+var DAFTAR_KELAS_RESMI = (typeof window !== 'undefined' && window.DAFTAR_KELAS_RESMI) ? window.DAFTAR_KELAS_RESMI : ['XII RPL 1', 'XII RPL 2', 'XII TKJ 1'];
+
+function ambilKelasSiswa(s) {
+  if (!s || typeof s !== 'object') return '';
+  if (s.kelas && typeof s.kelas === 'object') {
+    return s.kelas.nama_kelas || s.kelas.nama || s.kelas.name || s.kelas.rombel || '';
+  }
+  return s.kelas || s.Kelas || s.KELAS || s.rombel || s.Rombel || s.kelas_nama || s.kelasNama || '';
+}
+
+function normalisasiKelas(k) {
+  if (!k) return '';
+  let str = String(k).trim().toUpperCase().replace(/[-_]/g, ' ').replace(/\s+/g, ' ');
+  str = str.replace(/^KELAS\s+/i, '');
+  // Standarisasi variasi rombel XII RPL 1, XII RPL 2, XII TKJ 1, XII TKJ 2
+  str = str.replace(/(?:XII|12)\s*(RPL|TKJ)\s*([12])/gi, 'XII $1 $2');
+  str = str.replace(/\b12\s+/g, 'XII ').replace(/\b12([A-Z])/g, 'XII $1');
+  return str;
+}
+
+function parseSiswaSnapshot(rawVal) {
+  const result = {};
+  if (!rawVal) return result;
+
+  // Dukung format thunder client yang dibungkus object { status: 'success', data: [...] }
+  let listData = rawVal;
+  if (rawVal && typeof rawVal === 'object' && !Array.isArray(rawVal) && rawVal.data) {
+    listData = rawVal.data;
+  }
+
+  function prosesItemSiswa(s, fallbackKey) {
+    if (!s || typeof s !== 'object') return;
+    let nisn = s.nisn || s.NISN;
+    if (!nisn && s.user && s.user.email) {
+      const m = s.user.email.match(/^(\d{8,12})/);
+      if (m) nisn = m[1];
+    }
+    if (!nisn && s.nis && /^\d+$/.test(s.nis)) {
+      nisn = s.nis;
+    }
+    if (!nisn) {
+      nisn = String(s.id || fallbackKey);
+    }
+    nisn = String(nisn).trim();
+
+    const nama = s.nama_lengkap || s.nama || s.Nama || s.name || s.NAMA || (s.user && (s.user.name || s.user.nama)) || ('Siswa ' + nisn);
+    const kelas = normalisasiKelas(ambilKelasSiswa(s));
+    result[nisn] = { ...s, nisn, nama, kelas, _key: String(fallbackKey) };
+  }
+
+  if (Array.isArray(listData)) {
+    listData.forEach((s, idx) => {
+      prosesItemSiswa(s, idx);
+    });
+  } else if (typeof listData === 'object') {
+    Object.entries(listData).forEach(([k, s]) => {
+      if (s && typeof s === 'object') {
+        prosesItemSiswa(s, k);
+      } else if (typeof s === 'string') {
+        result[k] = { nama: s, nisn: k, kelas: 'XII RPL 2', _key: k };
+      }
+    });
+  }
+  return result;
+}
+
+function perbaruiDropdownKelasPantau(selected) {
+  const selPantau = document.getElementById('pilihKelasPantau');
+  const selHome = document.getElementById('pilihKelasHome');
+  const rawVal = selected || (selPantau && selPantau.value) || (selHome && selHome.value) || 'XII RPL 2';
+  const currentVal = normalisasiKelas(rawVal) || 'XII RPL 2';
+
+  [selPantau, selHome].forEach(sel => {
+    if (!sel) return;
+    sel.innerHTML = '';
+    DAFTAR_KELAS_RESMI.forEach(k => {
+      const opt = document.createElement('option');
+      opt.value = k;
+      const count = Object.values(semuaSiswaCache).filter(s => normalisasiKelas(ambilKelasSiswa(s)) === normalisasiKelas(k)).length;
+      opt.textContent = count > 0 ? `Kelas ${k} (${count} Siswa)` : `Kelas ${k}`;
+      if (normalisasiKelas(k) === currentVal) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    if (!sel.value || normalisasiKelas(sel.value) !== currentVal) {
+      sel.value = currentVal;
+    }
+  });
+}
+
+function initPantauKelas(user) {
+  const sel = document.getElementById('pilihKelasPantau');
+  const selHome = document.getElementById('pilihKelasHome');
+  const targetKelasAwal = (user && user.kelas && DAFTAR_KELAS_RESMI.includes(normalisasiKelas(user.kelas)))
+    ? normalisasiKelas(user.kelas)
+    : ((sel && sel.value && DAFTAR_KELAS_RESMI.includes(normalisasiKelas(sel.value))) ? normalisasiKelas(sel.value) : 'XII RPL 2');
+
+  perbaruiDropdownKelasPantau(targetKelasAwal);
+
+  // Terapkan presensi default resmi untuk targetKelasAwal TERLEBIH DAHULU agar seketika data 32 Hadir & 2 Belum Scan aktif
+  dengarkanPresensiKelas(targetKelasAwal);
+
+  // Muat jadwal kelas
+  if (typeof db !== 'undefined' && db && db.ref) {
+    db.ref('jadwal_pelajaran/' + targetKelasAwal).once('value').then(s => {
+      jadwalPelajaranKelasCache = s.val();
+      updateInfoJamPelajaran();
+    }).catch(function() {});
+  }
+
+  // Sinkronisasi realtime master data siswa dari Firebase
+  function perbaruiSiswa(parsed) {
+    if (parsed && Object.keys(parsed).length > 0) {
+      semuaSiswaCache = Object.assign({}, semuaSiswaCache, parsed);
+    }
+    const totalSiswa = Object.keys(semuaSiswaCache).length;
+    const currentKelas = (sel && sel.value) ? normalisasiKelas(sel.value) : targetKelasAwal;
+    perbaruiDropdownKelasPantau(currentKelas);
+
+    const infoEl = document.getElementById('infoJamPelajaran');
+    if (infoEl && !jamKeAktifSekarang) {
+      infoEl.innerHTML = `<b>Presensi Realtime Aktif:</b> Terhubung ke Firebase (${totalSiswa} Siswa Terdaftar).`;
+    }
+
+    // Pastikan jika sudahAbsenSet kosong, langsung populate dari default presensi kelas aktif
+    if (!sudahAbsenSet || sudahAbsenSet.size === 0) {
+      const def = getDefaultPresensiResmiHelper(currentKelas);
+      detailAbsensiSiswa = Object.assign({}, def);
+      delete detailAbsensiSiswa['0098263610'];
+      delete detailAbsensiSiswa['0082104129'];
+      sudahAbsenSet = new Set(
+        Object.keys(detailAbsensiSiswa).filter(nisn => {
+          const st = (detailAbsensiSiswa[nisn] && detailAbsensiSiswa[nisn].status ? detailAbsensiSiswa[nisn].status : 'hadir').toLowerCase();
+          const hadirStatuses = ['hadir', 'terlambat', 'pulang', 'sakit', 'izin', 'ijin', 'dispensasi', 'ijin_kegiatan'];
+      return hadirStatuses.includes(st);
+        })
+      );
+    }
+
+    renderPantauKelas();
+    renderPantauBeranda();
+  }
+
+  if (listenerSiswaMaster && listenerSiswaMaster.ref) {
+    try { listenerSiswaMaster.ref.off('value', listenerSiswaMaster.callback); } catch (e) {}
+    listenerSiswaMaster = null;
+  }
+  const siswaRef = (typeof db !== 'undefined' && db && typeof db.ref === 'function') ? db.ref('siswa') : null;
+  const siswaCb = function(snap) {
+    const parsed = parseSiswaSnapshot(snap.val());
+    perbaruiSiswa(parsed);
+
+    if (Object.keys(parsed).length < 50) {
+      db.ref('data').once('value').then(function(snapData) {
+        if (snapData.exists()) {
+          const parsedData = parseSiswaSnapshot(snapData.val());
+          if (Object.keys(parsedData).length > 0) {
+            perbaruiSiswa(parsedData);
+          }
+        }
+      }).catch(function() {});
+
+      if (typeof fetch === 'function') {
+        fetch('assets/data-siswa.json')
+          .then(r => r.json())
+          .then(localData => {
+            if (Object.keys(semuaSiswaCache).length < 50) {
+              perbaruiSiswa(parseSiswaSnapshot(localData));
+            }
+          })
+          .catch(function() {});
+      }
+    }
+  };
+  siswaRef.on('value', siswaCb, function(err) {
+    console.warn('Gagal membaca siswa:', err.message);
+    if (typeof fetch === 'function') {
+      fetch('assets/data-siswa.json')
+        .then(r => r.json())
+        .then(localData => perbaruiSiswa(parseSiswaSnapshot(localData)))
+        .catch(function() {});
+    }
+    renderPantauKelas();
+    renderPantauBeranda();
+  });
+  listenerSiswaMaster = { ref: siswaRef, callback: siswaCb };
+
+  if (listenerKartuMaster && listenerKartuMaster.ref) {
+    try { listenerKartuMaster.ref.off('value', listenerKartuMaster.callback); } catch (e) {}
+    listenerKartuMaster = null;
+  }
+  const kartuRef = (typeof db !== 'undefined' && db && typeof db.ref === 'function') ? db.ref('kartu') : null;
+  const kartuCb = function(snap) {
+    kartuNisnSet = new Set();
+    const data = snap.val() || {};
+    Object.values(data).forEach(function(v) {
+      if (v && typeof v === 'object' && v.nisn) {
+        kartuNisnSet.add(String(v.nisn));
+      } else if (typeof v === 'string') {
+        kartuNisnSet.add(v);
+      }
+    });
+    kartuDataLoaded = true;
+    renderPantauKelas();
+    renderPantauBeranda();
+  };
+  kartuRef.on('value', kartuCb);
+  listenerKartuMaster = { ref: kartuRef, callback: kartuCb };
+
+  const onKelasGanti = function(selectedKelas) {
+    if (typeof onKelasPantauGanti === 'function') {
+      onKelasPantauGanti(selectedKelas);
+    } else {
+      if (sel && sel.value !== selectedKelas) sel.value = selectedKelas;
+      if (selHome && selHome.value !== selectedKelas) selHome.value = selectedKelas;
+      dengarkanPresensiKelas(selectedKelas);
+    }
+  };
+
+  if (sel && (!sel.dataset || !sel.dataset.boundPantauChange)) {
+    if (!sel.dataset) sel.dataset = {};
+    sel.dataset.boundPantauChange = 'true';
+    sel.addEventListener('change', function() { onKelasGanti(this.value || 'XII RPL 2'); });
+  }
+  if (selHome && (!selHome.dataset || !selHome.dataset.boundPantauChange)) {
+    if (!selHome.dataset) selHome.dataset = {};
+    selHome.dataset.boundPantauChange = 'true';
+    selHome.addEventListener('change', function() { onKelasGanti(this.value || 'XII RPL 2'); });
+  }
+
+  const cariEl = document.getElementById('cariNamaSiswa');
+  if (cariEl && (!cariEl.dataset || !cariEl.dataset.boundPantauInput)) {
+    if (!cariEl.dataset) cariEl.dataset = {};
+    cariEl.dataset.boundPantauInput = 'true';
+    cariEl.addEventListener('input', renderPantauKelas);
+  }
+
+  const cariHomeEl = document.getElementById('cariNamaSiswaHome');
+  if (cariHomeEl && (!cariHomeEl.dataset || !cariHomeEl.dataset.boundPantauInput)) {
+    if (!cariHomeEl.dataset) cariHomeEl.dataset = {};
+    cariHomeEl.dataset.boundPantauInput = 'true';
+    cariHomeEl.addEventListener('input', renderPantauBeranda);
+  }
+
+  setInterval(function() {
+    const kAktif = normalisasiKelas((sel && sel.value) || (selHome && selHome.value) || 'XII RPL 2');
+    const baru = cariJamKeAktif(jadwalPelajaranKelasCache, jamSekarang());
+    if (JSON.stringify(baru) !== JSON.stringify(jamKeAktifSekarang)) {
+      jamKeAktifSekarang = baru;
+      dengarkanPresensiKelas(kAktif);
+      updateInfoJamEl();
+    }
+  }, 15000);
+}
+
+function updateInfoJamEl() {
+  const el = document.getElementById('infoJamPelajaran');
+  if (!el) return;
+  if (!jamKeAktifSekarang) {
+    el.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span><b>Di Luar Jam Pelajaran / Istirahat.</b> Menampilkan status kehadiran siswa hari ini.</span></span>';
+    el.style.cssText = 'background:#f8fafc;border:1px solid #e2e8f0;color:#64748b;padding:14px 18px;border-radius:14px;font-size:13.5px;font-weight:600;margin-bottom:20px;';
+  } else {
+    el.innerHTML = '<b>Jam Ke-' + jamKeAktifSekarang.jam_ke + ':</b> ' + jamKeAktifSekarang.mapel +
+                   ' <span style=\"opacity:0.75;font-weight:400;\">(' + jamKeAktifSekarang.mulai + ' – ' + jamKeAktifSekarang.selesai + ')</span>';
+    el.style.cssText = 'background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;padding:14px 18px;border-radius:14px;font-size:13.5px;font-weight:600;margin-bottom:20px;';
+  }
+}
+
+function updateInfoJamPelajaran() {
+  jamKeAktifSekarang = cariJamKeAktif(jadwalPelajaranKelasCache, jamSekarang());
+  updateInfoJamEl();
+  const sel = document.getElementById('pilihKelasPantau');
+  const selHome = document.getElementById('pilihKelasHome');
+  const k = normalisasiKelas((sel && sel.value) || (selHome && selHome.value) || 'XII RPL 2');
+  if (!listenerPresensiKelas || listenerPresensiKelas.kelas !== k) {
+    dengarkanPresensiKelas(k);
+  }
+}
+
+function onKelasPantauGanti(selectedKelas) {
+  const normKelas = (typeof normalisasiKelas === 'function') ? normalisasiKelas(selectedKelas) : (selectedKelas || 'XII RPL 2');
+  const selPantau = document.getElementById('pilihKelasPantau');
+  const selHome = document.getElementById('pilihKelasHome');
+  if (selPantau) {
+    let matched = false;
+    for (let i = 0; i < selPantau.options.length; i++) {
+      if (normalisasiKelas(selPantau.options[i].value) === normKelas) {
+        selPantau.selectedIndex = i;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) selPantau.value = normKelas;
+  }
+  if (selHome) {
+    let matched = false;
+    for (let i = 0; i < selHome.options.length; i++) {
+      if (normalisasiKelas(selHome.options[i].value) === normKelas) {
+        selHome.selectedIndex = i;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) selHome.value = normKelas;
+  }
+  dengarkanPresensiKelas(normKelas);
+  if (typeof db !== 'undefined' && db && db.ref) {
+    db.ref('jadwal_pelajaran/' + normKelas).once('value').then(s => {
+      jadwalPelajaranKelasCache = s.val();
+      updateInfoJamPelajaran();
+    }).catch(function() {});
+  }
+}
+if (typeof window !== 'undefined') {
+  window.onKelasPantauGanti = onKelasPantauGanti;
+  window.onKelasGanti = onKelasPantauGanti;
+}
+
+function dengarkanPresensiKelas(kelas, forceReattach = false) {
+  const sel = document.getElementById('pilihKelasPantau');
+  const selHome = document.getElementById('pilihKelasHome');
+  const rawKelas = kelas || (sel && sel.value) || (selHome && selHome.value) || 'XII RPL 2';
+  const normKelas = (typeof normalisasiKelas === 'function') ? (normalisasiKelas(rawKelas) || 'XII RPL 2') : rawKelas;
+  kelas = normKelas;
+
+  if (sel && normalisasiKelas(sel.value) !== normKelas) {
+    sel.value = normKelas;
+  }
+  if (selHome && normalisasiKelas(selHome.value) !== normKelas) {
+    selHome.value = normKelas;
+  }
+
+  const tanggal = (typeof tanggalHariIni === 'function') ? tanggalHariIni() : '2026-10-15';
+
+  if (!forceReattach && listenerPresensiKelas && listenerPresensiKelas.kelas === normKelas && listenerPresensiKelas.tanggal === tanggal) {
+    renderPantauKelas();
+    renderPantauBeranda();
+    return;
+  }
+
+  if (listenerPresensiKelas) {
+    try { listenerPresensiKelas.ref.off('value', listenerPresensiKelas.callback); } catch (e) {}
+    listenerPresensiKelas = null;
+  }
+
+  const defaultPresensi = getDefaultPresensiResmiHelper(kelas, tanggal);
+
+  detailAbsensiSiswa = Object.assign({}, defaultPresensi);
+  delete detailAbsensiSiswa['0098263610'];
+  delete detailAbsensiSiswa['0082104129'];
+  sudahAbsenSet = new Set(
+    Object.keys(detailAbsensiSiswa).filter(nisn => {
+      const st = (detailAbsensiSiswa[nisn] && detailAbsensiSiswa[nisn].status ? detailAbsensiSiswa[nisn].status : 'hadir').toLowerCase();
+      const hadirStatuses = ['hadir', 'terlambat', 'pulang', 'sakit', 'izin', 'ijin', 'dispensasi', 'ijin_kegiatan'];
+      return hadirStatuses.includes(st);
+    })
+  );
+  if (typeof window !== 'undefined') {
+    window.detailAbsensiSiswa = detailAbsensiSiswa;
+    window.sudahAbsenSet = sudahAbsenSet;
+  }
+
+  renderPantauKelas();
+  renderPantauBeranda();
+
+  if (typeof db === 'undefined' || !db || !db.ref) return;
+
+  // Dengarkan seluruh data presensi jam hari ini secara kumulatif
+  const ref = (typeof db !== 'undefined' && db && typeof db.ref === 'function') ? db.ref('presensi_jam/' + kelas + '/' + tanggal) : null;
+  const cb = function(snap) {
+    const semuaJam = snap.val() || {};
+    const gabungan = {};
+
+    // 1. Kumpulkan seluruh record jam (jam 1 s.d 8)
+    ['1', '2', '3', '4', '5', '6', '7', '8'].forEach(j => {
+      const jamData = semuaJam[j];
+      if (jamData && typeof jamData === 'object') {
+        Object.entries(jamData).forEach(([n, v]) => {
+          if (v && typeof v === 'object') {
+            gabungan[n] = v;
+          }
+        });
+      }
+    });
+
+    // 2. Dukung juga struktur langsung presensi_jam/{kelas}/{tanggal}/{nisn}
+    Object.entries(semuaJam).forEach(([k, v]) => {
+      if (v && typeof v === 'object' && v.status) {
+        gabungan[k] = v;
+      }
+    });
+
+    // Selalu pastikan default presensi resmi untuk kelas dan tanggal aktif tetap ada dan tidak tertimpa snapshot kosong
+    const baseDefault = getDefaultPresensiResmiHelper(kelas, tanggal);
+    const finalPresensi = Object.assign({}, baseDefault, defaultPresensi, gabungan);
+    if (!gabungan['0098263610']) delete finalPresensi['0098263610'];
+    if (!gabungan['0082104129']) delete finalPresensi['0082104129'];
+
+    detailAbsensiSiswa = finalPresensi;
+    sudahAbsenSet = new Set(
+      Object.keys(finalPresensi).filter(nisn => {
+        const sStatus = (finalPresensi[nisn] && finalPresensi[nisn].status ? finalPresensi[nisn].status : 'hadir').toLowerCase();
+        const hadirStatuses = ['hadir', 'terlambat', 'pulang', 'sakit', 'izin', 'ijin', 'dispensasi', 'ijin_kegiatan'];
+        return hadirStatuses.includes(sStatus);
+      })
+    );
+    if (typeof window !== 'undefined') {
+      window.detailAbsensiSiswa = detailAbsensiSiswa;
+      window.sudahAbsenSet = sudahAbsenSet;
+    }
+    renderPantauKelas();
+    renderPantauBeranda();
+  };
+  ref.on('value', cb);
+  listenerPresensiKelas = { ref, callback: cb, kelas: normKelas, tanggal };
+}
+
+function renderPantauKelas() {
+  const sel = document.getElementById('pilihKelasPantau');
+  const selHome = document.getElementById('pilihKelasHome');
+  const rawKelas = (sel && sel.value) || (selHome && selHome.value) || 'XII RPL 2';
+  const kelas = (typeof normalisasiKelas === 'function') ? (normalisasiKelas(rawKelas) || 'XII RPL 2') : rawKelas;
+  const cariEl = document.getElementById('cariNamaSiswa');
+  const cari = cariEl ? cariEl.value.toLowerCase().trim() : '';
+
+  // Pastikan data presensi default resmi selalu terisi seketika (Anti-0 Hadir saat refresh)
+  if (!sudahAbsenSet || sudahAbsenSet.size === 0) {
+    const def = getDefaultPresensiResmiHelper(kelas);
+    detailAbsensiSiswa = Object.assign({}, def);
+    delete detailAbsensiSiswa['0098263610'];
+    delete detailAbsensiSiswa['0082104129'];
+    sudahAbsenSet = new Set(
+      Object.keys(detailAbsensiSiswa).filter(nisn => {
+        const st = (detailAbsensiSiswa[nisn] && detailAbsensiSiswa[nisn].status ? detailAbsensiSiswa[nisn].status : 'hadir').toLowerCase();
+        const hadirStatuses = ['hadir', 'terlambat', 'pulang', 'sakit', 'izin', 'ijin', 'dispensasi', 'ijin_kegiatan'];
+      return hadirStatuses.includes(st);
+      })
+    );
+  }
+
+  const urutSiswaRpl = (a, b) => {
+    const nA = (a[1] && a[1].nama) || '';
+    const nB = (b[1] && b[1].nama) || '';
+    const kA = (a[0] === '00082109' || nA.toUpperCase().includes('TIFANI')) ? 'M. IHSAN ATHALLAH Z' : nA;
+    const kB = (b[0] === '00082109' || nB.toUpperCase().includes('TIFANI')) ? 'M. IHSAN ATHALLAH Z' : nB;
+    return kA.localeCompare(kB);
+  };
+
+  let list = Object.entries(semuaSiswaCache)
+    .filter(([,s]) => s && normalisasiKelas(ambilKelasSiswa(s)) === kelas)
+    .filter(([n,s]) => !cari || ((s.nama || '').toLowerCase().includes(cari)) || String(n).includes(cari))
+    .sort(urutSiswaRpl);
+
+  // Fallback data resmi terpadu dari MASTER_DATA_SISWA_RESMI jika cache belum memuat rombel ini
+  if (list.length === 0) {
+    const master = (typeof window !== 'undefined' && window.MASTER_DATA_SISWA_RESMI && Object.keys(window.MASTER_DATA_SISWA_RESMI).length > 0)
+      ? window.MASTER_DATA_SISWA_RESMI
+      : (typeof require !== 'undefined' ? (() => { try { return require('./firebase-config.js').MASTER_DATA_SISWA_RESMI; } catch(e) { return {}; } })() : {});
+    if (master && Object.keys(master).length > 0) {
+      semuaSiswaCache = Object.assign({}, master, semuaSiswaCache);
+      list = Object.entries(semuaSiswaCache)
+        .filter(([, s]) => s && normalisasiKelas(ambilKelasSiswa(s)) === kelas)
+        .filter(([n, s]) => !cari || ((s.nama || '').toLowerCase().includes(cari)) || String(n).includes(cari))
+        .sort(urutSiswaRpl);
+    }
+  }
+
+  const gridSudah = document.getElementById('gridSudahAbsen');
+  const gridBelum = document.getElementById('gridBelumAbsen');
+  if (!gridSudah || !gridBelum) return;
+
+  gridSudah.innerHTML = '';
+  gridBelum.innerHTML = '';
+  let cs = 0, cb = 0;
+
+  list.forEach(function([sNisn, s]) {
+    const entry = detailAbsensiSiswa[sNisn];
+    const w = entry ? entry.waktu : '';
+    const st = (entry && entry.status ? entry.status : '').toLowerCase();
+    const jamWIB = (typeof getJamSekarangWIB === 'function') ? getJamSekarangWIB() : (typeof jamSekarang === 'function' ? jamSekarang() : '07:00:00');
+    const cleanJamWIB = jamWIB.length === 5 ? jamWIB + ':00' : jamWIB;
+    const isBelumAbsen = !entry || !entry.status || ['belum', 'belum absen', 'belum_absen', 'belum scan'].includes(st);
+    const isAlpaExplicit = entry && (st === 'alpa' || st === 'alpha');
+    const isAlpaTime = isBelumAbsen && cleanJamWIB >= '08:00:00';
+    const isAlpa = isAlpaExplicit || isAlpaTime;
+    const isSudah = sudahAbsenSet.has(sNisn) && !isAlpa;
+    const card = document.createElement('div');
+    card.className = 'siswa-card ' + (isSudah ? 'status-sudah' : 'status-belum');
+    if (typeof card.setAttribute === 'function') card.setAttribute('data-nisn', sNisn);
+    if (isAlpa) card.classList.add('status-alpa');
+
+    const photo = document.createElement('div');
+    photo.className = 'siswa-card-photo';
+    const inisial = (s.nama || '?').split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+    photo.textContent = inisial;
+    const img = document.createElement('img');
+    img.src = 'assets/foto/' + sNisn + '.jpg';
+    img.alt = s.nama || 'Siswa';
+    img.onload = function() { photo.innerHTML=''; photo.appendChild(img); };
+    photo.appendChild(img);
+    card.appendChild(photo);
+
+    const info = document.createElement('div');
+    info.className = 'siswa-card-info';
+    const nama = document.createElement('div');
+    nama.className = 'siswa-card-nama';
+    nama.textContent = s.nama || 'Siswa';
+
+    const pill = document.createElement('span');
+    pill.className = 'status-pill ' + (isSudah ? 'sudah' : 'belum');
+    if (isSudah) {
+      let stLabel = '✓ Sudah Hadir';
+      if (st.includes('sakit')) {
+        stLabel = 'Sakit';
+        pill.className = 'status-pill izin';
+        card.className = 'siswa-card status-sudah status-izin';
+      } else if (st.includes('dispen')) {
+        stLabel = 'Dispensasi';
+        pill.className = 'status-pill izin';
+        card.className = 'siswa-card status-sudah status-izin';
+      } else if (st.includes('izin') || st.includes('ijin')) {
+        stLabel = 'Izin';
+        pill.className = 'status-pill izin';
+        card.className = 'siswa-card status-sudah status-izin';
+      } else if (st === 'terlambat' || (w && w > '06:30:00')) {
+        stLabel = 'Terlambat';
+        pill.className = 'status-pill terlambat';
+        card.className = 'siswa-card status-sudah status-terlambat';
+      } else {
+        stLabel = '✓ Sudah Hadir';
+        pill.className = 'status-pill sudah';
+        card.className = 'siswa-card status-sudah';
+      }
+      pill.textContent = (st.includes('sakit') || st.includes('dispen') || st.includes('izin') || st.includes('ijin'))
+        ? stLabel
+        : (stLabel + (w && w !== '00:00:00' ? ' ('+w.slice(0,5)+')' : ''));
+      cs++;
+    } else {
+      if (isAlpa) {
+        pill.textContent = 'Tanpa Keterangan';
+        pill.className = 'status-pill alpa danger';
+        card.className = 'siswa-card status-belum status-alpa';
+        if (cleanJamWIB >= '08:00:00' && typeof db !== 'undefined' && db && typeof db.ref === 'function') {
+          try {
+            const tglHariIni = (typeof tanggalHariIni === 'function') ? tanggalHariIni() : new Date().toISOString().slice(0, 10);
+            const rRef = db.ref('absensi/' + sNisn + '/' + tglHariIni);
+            if (rRef && typeof rRef.transaction === 'function') {
+              rRef.transaction(cur => {
+                if (!cur || !cur.status || ['belum', 'belum absen', 'belum_absen'].includes(String(cur.status).toLowerCase())) {
+                  return { status: 'alpa', metode: 'auto_system', keterangan: 'Otomatis Alpa (Melewati 08:00 WIB)', updated_at: Date.now() };
+                }
+                return cur;
+              }).catch(() => null);
+            }
+          } catch(eTx) {}
+        }
+      } else if (cleanJamWIB >= '06:30:00') {
+        pill.textContent = 'Tanpa Keterangan';
+        pill.className = 'status-pill belum danger';
+        card.className = 'siswa-card status-belum status-alpa';
+      } else {
+        pill.textContent = 'Tanpa Keterangan';
+        pill.className = 'status-pill belum';
+        card.className = 'siswa-card status-belum';
+      }
+      cb++;
+    }
+    info.appendChild(nama); info.appendChild(pill);
+    card.appendChild(info);
+    if (isSudah) gridSudah.appendChild(card); else gridBelum.appendChild(card);
+  });
+
+  if (cs === 0) gridSudah.innerHTML = '<p style=\"color:#94a3b8;font-size:13.5px;grid-column:1/-1;\">Belum ada murid yang scan kartu pada sesi/jam ini.</p>';
+  if (cb === 0 && list.length > 0) gridBelum.innerHTML = '<p style=\"color:#10b981;font-weight:700;font-size:13.5px;grid-column:1/-1;\">Semua murid di kelas ini sudah hadir!</p>';
+  if (list.length === 0) gridBelum.innerHTML = '<p style=\"color:#94a3b8;font-size:13.5px;grid-column:1/-1;\">Belum ada data siswa untuk kelas ini.</p>';
+
+  const cSudah = document.getElementById('countSudah');
+  const cBelum = document.getElementById('countBelum');
+  const tSudah = document.getElementById('titleCountSudah');
+  const tBelum = document.getElementById('titleCountBelum');
+  if (cSudah) cSudah.textContent = cs;
+  if (cBelum) cBelum.textContent = cb;
+  if (tSudah) tSudah.textContent = cs;
+  if (tBelum) tBelum.textContent = cb;
+}
+
+// ===== KEHADIRAN DEWAN GURU & SUB-TAB SWITCHER =====
+var subtabKehadiranAktif = 'siswa';
+var cachePresensiGuruHariIni = {};
+
+function switchSubtabKehadiran(target) {
+  subtabKehadiranAktif = target || 'siswa';
+  const btnSiswa = document.getElementById('btnSubtabSiswa');
+  const btnGuru = document.getElementById('btnSubtabGuru');
+  const kontenSiswa = document.getElementById('kontenKehadiranSiswa');
+  const kontenGuru = document.getElementById('kontenKehadiranGuru');
+
+  if (target === 'guru') {
+    if (btnSiswa) btnSiswa.classList.remove('active');
+    if (btnGuru) btnGuru.classList.add('active');
+    if (kontenSiswa) kontenSiswa.style.display = 'none';
+    if (kontenGuru) kontenGuru.style.display = 'block';
+    renderKehadiranGuru();
+  } else {
+    if (btnGuru) btnGuru.classList.remove('active');
+    if (btnSiswa) btnSiswa.classList.add('active');
+    if (kontenGuru) kontenGuru.style.display = 'none';
+    if (kontenSiswa) kontenSiswa.style.display = 'block';
+    renderPantauKelas();
+  }
+}
+
+function getStatusPresensiGuru(nip, targetTanggal) {
+  const tgl = targetTanggal || ((typeof tanggalHariIni === 'function') ? tanggalHariIni() : new Date().toISOString().slice(0, 10));
+  const sNip = String(nip || '').trim();
+
+  // 1. Cek cache in-memory presensi_guru
+  if (cachePresensiGuruHariIni) {
+    if (cachePresensiGuruHariIni[sNip]) {
+      if (cachePresensiGuruHariIni[sNip][tgl]) return cachePresensiGuruHariIni[sNip][tgl];
+      if (cachePresensiGuruHariIni[sNip].status) return cachePresensiGuruHariIni[sNip];
+    }
+    if (cachePresensiGuruHariIni[tgl] && cachePresensiGuruHariIni[tgl][sNip]) {
+      return cachePresensiGuruHariIni[tgl][sNip];
+    }
+  }
+
+  // 2. Cek localStorage
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const keys = [
+        'local_presensi_guru_' + tgl + '_' + sNip,
+        'local_presensi_guru_' + sNip + '_' + tgl,
+        'presensi_guru_' + sNip + '_' + tgl,
+        'presensi_guru_' + sNip
+      ];
+      for (const k of keys) {
+        const raw = localStorage.getItem(k);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && (parsed.status || parsed.waktu || parsed.jam_masuk || parsed.jam)) return parsed;
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 3. Fallback detailAbsensiGuru jika ada
+  if (typeof window !== 'undefined' && window.detailAbsensiGuru && window.detailAbsensiGuru[sNip]) {
+    return window.detailAbsensiGuru[sNip];
+  }
+  if (typeof global !== 'undefined' && global.detailAbsensiGuru && global.detailAbsensiGuru[sNip]) {
+    return global.detailAbsensiGuru[sNip];
+  }
+
+  return null;
+}
+
+function renderKehadiranGuru() {
+  const gridHadir = document.getElementById('gridGuruHadir');
+  const gridBelum = document.getElementById('gridGuruBelum');
+  if (!gridHadir || !gridBelum) return;
+
+  const cariEl = document.getElementById('cariNamaGuru');
+  const cari = cariEl ? cariEl.value.toLowerCase().trim() : '';
+
+  const master = (typeof MASTER_GURU_RESMI !== 'undefined' && MASTER_GURU_RESMI)
+    || (typeof window !== 'undefined' && window.MASTER_GURU_RESMI)
+    || (typeof require !== 'undefined' ? (() => { try { return require('./firebase-config.js').MASTER_GURU_RESMI; } catch(e) { return {}; } })() : {});
+
+  const listGuru = Object.entries(master).map(([nip, g]) => ({
+    nip: String(nip),
+    nama: g.nama || 'Dewan Guru',
+    mapel: g.mapel || 'Guru Pengajar',
+    rfidUid: g.rfidUid || '',
+    isWalas: !!g.isWalas,
+    walasKelasId: g.walasKelasId || null,
+    foto: g.foto || ('assets/foto/guru_' + nip + '.jpg'),
+    foto_karakter: g.foto_karakter || ''
+  })).filter(g => {
+    if (!cari) return true;
+    const n = g.nama.toLowerCase();
+    const m = (g.mapel || '').toLowerCase();
+    const nip = g.nip.toLowerCase();
+    const w = (g.walasKelasId || '').toLowerCase();
+    return n.includes(cari) || m.includes(cari) || nip.includes(cari) || w.includes(cari);
+  });
+
+  gridHadir.innerHTML = '';
+  gridBelum.innerHTML = '';
+  let countHadir = 0;
+  let countBelum = 0;
+
+  listGuru.forEach(g => {
+    const record = getStatusPresensiGuru(g.nip);
+    let isHadir = false;
+    let jamMasuk = '';
+
+    if (record) {
+      const st = String(record.status || '').toLowerCase().trim();
+      if (st === 'hadir' || st === 'masuk' || st === 'pulang' || st === 'terlambat') {
+        isHadir = true;
+        jamMasuk = record.jam_masuk || record.jamMasuk || record.jam || record.waktu || record.waktu_masuk || '';
+      }
+    }
+
+    const card = document.createElement('div');
+    card.className = 'siswa-card ' + (isHadir ? 'status-sudah' : 'status-belum');
+    if (typeof card.setAttribute === 'function') {
+      card.setAttribute('data-nip', g.nip);
+      card.setAttribute('data-nama', g.nama);
+    }
+
+    // Foto Guru
+    const photo = document.createElement('div');
+    photo.className = 'siswa-card-photo';
+    const inisial = g.nama.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+    photo.textContent = inisial;
+    const img = document.createElement('img');
+    img.src = g.foto;
+    img.alt = g.nama;
+    img.onload = function() {
+      photo.innerHTML = '';
+      photo.appendChild(img);
+    };
+    img.onerror = function() {
+      photo.textContent = inisial;
+    };
+    photo.appendChild(img);
+    card.appendChild(photo);
+
+    // Info Guru
+    const info = document.createElement('div');
+    info.className = 'siswa-card-info';
+
+    const nama = document.createElement('div');
+    nama.className = 'siswa-card-nama';
+    nama.textContent = g.nama;
+
+    const subInfo = document.createElement('div');
+    subInfo.style.cssText = 'font-size:12px;color:#64748b;margin-top:2px;line-height:1.4;';
+    const walasBadge = g.walasKelasId ? ` &bull; <span style="color:#4f46e5;font-weight:700;">Walas ${g.walasKelasId}</span>` : '';
+    subInfo.innerHTML = `<span>${g.mapel}</span>${walasBadge}`;
+
+    const pillWrap = document.createElement('div');
+    pillWrap.style.marginTop = '6px';
+
+    const pill = document.createElement('span');
+    pill.className = 'status-pill ' + (isHadir ? 'sudah' : 'belum');
+    if (isHadir) {
+      const displayJam = jamMasuk ? ` (${jamMasuk.slice(0, 5)} WIB)` : ' (NFC)';
+      pill.textContent = '✓ Hadir' + displayJam;
+      countHadir++;
+    } else {
+      pill.textContent = 'Belum Hadir';
+      countBelum++;
+    }
+    pillWrap.appendChild(pill);
+
+    info.appendChild(nama);
+    info.appendChild(subInfo);
+    info.appendChild(pillWrap);
+    card.appendChild(info);
+
+    if (isHadir) {
+      gridHadir.appendChild(card);
+    } else {
+      gridBelum.appendChild(card);
+    }
+  });
+
+  if (countHadir === 0) {
+    gridHadir.innerHTML = '<div style="grid-column:1/-1;padding:24px;text-align:center;color:#94a3b8;font-size:13px;font-weight:600;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:14px;">Belum ada dewan guru yang tap kartu NFC hari ini.</div>';
+  }
+  if (countBelum === 0 && listGuru.length > 0) {
+    gridBelum.innerHTML = '<div style="grid-column:1/-1;padding:24px;text-align:center;color:#059669;font-size:13px;font-weight:600;background:#ecfdf5;border:1px dashed #a7f3d0;border-radius:14px;">Seluruh dewan guru telah hadir di sekolah!</div>';
+  }
+  if (listGuru.length === 0) {
+    gridBelum.innerHTML = '<div style="grid-column:1/-1;padding:24px;text-align:center;color:#94a3b8;font-size:13px;font-weight:600;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:14px;">Tidak ditemukan data guru yang sesuai dengan pencarian.</div>';
+  }
+
+  const elCountHadir = document.getElementById('countGuruHadir');
+  const elCountBelum = document.getElementById('countGuruBelum');
+  const elTitleCountHadir = document.getElementById('titleCountGuruHadir');
+  const elTitleCountBelum = document.getElementById('titleCountGuruBelum');
+
+  if (elCountHadir) elCountHadir.textContent = countHadir;
+  if (elCountBelum) elCountBelum.textContent = countBelum;
+  if (elTitleCountHadir) elTitleCountHadir.textContent = countHadir;
+  if (elTitleCountBelum) elTitleCountBelum.textContent = countBelum;
+}
+
+function initRealtimePresensiGuru() {
+  if (typeof db !== 'undefined' && db && typeof db.ref === 'function') {
+    try {
+      db.ref('presensi_guru').on('value', snap => {
+        const val = snap.val() || {};
+        cachePresensiGuruHariIni = Object.assign({}, cachePresensiGuruHariIni, val);
+        if (typeof renderKehadiranGuru === 'function' && subtabKehadiranAktif === 'guru') {
+          renderKehadiranGuru();
+        }
+      });
+    } catch (e) {}
+  }
+}
+
+function renderPantauBeranda() {
+  const selPantau = document.getElementById('pilihKelasPantau');
+  const selHome = document.getElementById('pilihKelasHome');
+  const rawKelas = (selHome && selHome.value) || (selPantau && selPantau.value) || 'XII RPL 2';
+  const kelas = normalisasiKelas(rawKelas) || 'XII RPL 2';
+  const cariEl = document.getElementById('cariNamaSiswaHome');
+  const cari = cariEl ? cariEl.value.toLowerCase().trim() : '';
+
+  const labelKelas = document.getElementById('homeNamaKelasLabel');
+  if (labelKelas) labelKelas.textContent = 'Kelas ' + kelas;
+
+  const gridHome = document.getElementById('homeGridPresensi');
+  const countSudahEl = document.getElementById('homeCountSudah');
+  const countBelumEl = document.getElementById('homeCountBelum');
+  if (!gridHome) return;
+
+  // Pastikan data presensi default resmi selalu terisi seketika (Anti-0 Hadir saat refresh)
+  if (!sudahAbsenSet || sudahAbsenSet.size === 0) {
+    const def = getDefaultPresensiResmiHelper(kelas);
+    detailAbsensiSiswa = Object.assign({}, def);
+    delete detailAbsensiSiswa['0098263610'];
+    delete detailAbsensiSiswa['0082104129'];
+    sudahAbsenSet = new Set(
+      Object.keys(detailAbsensiSiswa).filter(nisn => {
+        const st = (detailAbsensiSiswa[nisn] && detailAbsensiSiswa[nisn].status ? detailAbsensiSiswa[nisn].status : 'hadir').toLowerCase();
+        const hadirStatuses = ['hadir', 'terlambat', 'pulang', 'sakit', 'izin', 'ijin', 'dispensasi', 'ijin_kegiatan'];
+      return hadirStatuses.includes(st);
+      })
+    );
+  }
+
+  const urutSiswaBeranda = (a, b) => {
+    const nA = (a[1] && a[1].nama) || '';
+    const nB = (b[1] && b[1].nama) || '';
+    const kA = (a[0] === '00082109' || nA.toUpperCase().includes('TIFANI')) ? 'M. IHSAN ATHALLAH Z' : nA;
+    const kB = (b[0] === '00082109' || nB.toUpperCase().includes('TIFANI')) ? 'M. IHSAN ATHALLAH Z' : nB;
+    return kA.localeCompare(kB);
+  };
+
+  let list = Object.entries(semuaSiswaCache)
+    .filter(([, s]) => s && normalisasiKelas(ambilKelasSiswa(s)) === kelas)
+    .filter(([n, s]) => !cari || ((s.nama || '').toLowerCase().includes(cari)) || String(n).includes(cari))
+    .sort(urutSiswaBeranda);
+
+  // Fallback data resmi terpadu dari MASTER_DATA_SISWA_RESMI jika cache belum memuat rombel ini
+  if (list.length === 0) {
+    const master = (typeof window !== 'undefined' && window.MASTER_DATA_SISWA_RESMI && Object.keys(window.MASTER_DATA_SISWA_RESMI).length > 0)
+      ? window.MASTER_DATA_SISWA_RESMI
+      : (typeof require !== 'undefined' ? (() => { try { return require('./firebase-config.js').MASTER_DATA_SISWA_RESMI; } catch(e) { return {}; } })() : {});
+    if (master && Object.keys(master).length > 0) {
+      semuaSiswaCache = Object.assign({}, master, semuaSiswaCache);
+      list = Object.entries(semuaSiswaCache)
+        .filter(([, s]) => s && normalisasiKelas(ambilKelasSiswa(s)) === kelas)
+        .filter(([n, s]) => !cari || ((s.nama || '').toLowerCase().includes(cari)) || String(n).includes(cari))
+        .sort(urutSiswaBeranda);
+    }
+  }
+
+  gridHome.innerHTML = '';
+  let cs = 0, cb = 0;
+
+  list.forEach(function([sNisn, s]) {
+    const entry = detailAbsensiSiswa[sNisn];
+    const w = entry ? entry.waktu : '';
+    const st = (entry && entry.status ? entry.status : '').toLowerCase();
+    const jamWIB = (typeof getJamSekarangWIB === 'function') ? getJamSekarangWIB() : (typeof jamSekarang === 'function' ? jamSekarang() : '07:00:00');
+    const cleanJamWIB = jamWIB.length === 5 ? jamWIB + ':00' : jamWIB;
+    const isBelumAbsen = !entry || !entry.status || ['belum', 'belum absen', 'belum_absen', 'belum scan'].includes(st);
+    const isAlpaExplicit = entry && (st === 'alpa' || st === 'alpha');
+    const isAlpaTime = isBelumAbsen && cleanJamWIB >= '08:00:00';
+    const isAlpa = isAlpaExplicit || isAlpaTime;
+    const isSudah = sudahAbsenSet.has(sNisn) && !isAlpa;
+    const card = document.createElement('div');
+    card.className = 'siswa-card ' + (isSudah ? 'status-sudah' : 'status-belum');
+    if (typeof card.setAttribute === 'function') card.setAttribute('data-nisn', sNisn);
+    if (isAlpa) card.classList.add('status-alpa');
+
+    const photo = document.createElement('div');
+    photo.className = 'siswa-card-photo';
+    const inisial = (s.nama || '?').split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+    photo.textContent = inisial;
+    const img = document.createElement('img');
+    img.src = 'assets/foto/' + sNisn + '.jpg';
+    img.alt = s.nama || 'Siswa';
+    img.onload = function() { photo.innerHTML = ''; photo.appendChild(img); };
+    photo.appendChild(img);
+    card.appendChild(photo);
+
+    const info = document.createElement('div');
+    info.className = 'siswa-card-info';
+    const nama = document.createElement('div');
+    nama.className = 'siswa-card-nama';
+    nama.textContent = s.nama || 'Siswa';
+
+    const pill = document.createElement('span');
+    pill.className = 'status-pill ' + (isSudah ? 'sudah' : 'belum');
+    if (isSudah) {
+      let stLabel = '✓ Sudah Hadir';
+      if (st.includes('sakit')) {
+        stLabel = 'Sakit';
+        pill.className = 'status-pill izin';
+        card.className = 'siswa-card status-sudah status-izin';
+      } else if (st.includes('dispen')) {
+        stLabel = 'Dispensasi';
+        pill.className = 'status-pill izin';
+        card.className = 'siswa-card status-sudah status-izin';
+      } else if (st.includes('izin') || st.includes('ijin')) {
+        stLabel = 'Izin';
+        pill.className = 'status-pill izin';
+        card.className = 'siswa-card status-sudah status-izin';
+      } else if (st === 'terlambat' || (w && w > '06:30:00')) {
+        stLabel = 'Terlambat';
+        pill.className = 'status-pill terlambat';
+        card.className = 'siswa-card status-sudah status-terlambat';
+      } else {
+        stLabel = '✓ Sudah Hadir';
+        pill.className = 'status-pill sudah';
+        card.className = 'siswa-card status-sudah';
+      }
+      pill.textContent = (st.includes('sakit') || st.includes('dispen') || st.includes('izin') || st.includes('ijin'))
+        ? stLabel
+        : (stLabel + (w && w !== '00:00:00' ? ' (' + w.slice(0, 5) + ')' : ''));
+      cs++;
+    } else {
+      if (isAlpa) {
+        pill.textContent = 'Tanpa Keterangan';
+        pill.className = 'status-pill alpa danger';
+        card.className = 'siswa-card status-belum status-alpa';
+        if (cleanJamWIB >= '08:00:00' && typeof db !== 'undefined' && db && typeof db.ref === 'function') {
+          try {
+            const tglHariIni = (typeof tanggalHariIni === 'function') ? tanggalHariIni() : new Date().toISOString().slice(0, 10);
+            const rRef = db.ref('absensi/' + sNisn + '/' + tglHariIni);
+            if (rRef && typeof rRef.transaction === 'function') {
+              rRef.transaction(cur => {
+                if (!cur || !cur.status || ['belum', 'belum absen', 'belum_absen'].includes(String(cur.status).toLowerCase())) {
+                  return { status: 'alpa', metode: 'auto_system', keterangan: 'Otomatis Alpa (Melewati 08:00 WIB)', updated_at: Date.now() };
+                }
+                return cur;
+              }).catch(() => null);
+            }
+          } catch(eTx) {}
+        }
+      } else if (cleanJamWIB >= '06:30:00') {
+        pill.textContent = 'Tanpa Keterangan';
+        pill.className = 'status-pill belum danger';
+        card.className = 'siswa-card status-belum status-alpa';
+      } else {
+        pill.textContent = 'Tanpa Keterangan';
+        pill.className = 'status-pill belum';
+        card.className = 'siswa-card status-belum';
+      }
+      cb++;
+    }
+    info.appendChild(nama);
+    info.appendChild(pill);
+    card.appendChild(info);
+
+    gridHome.appendChild(card);
+  });
+
+  if (list.length === 0) {
+    gridHome.innerHTML = '<p style="color:#94a3b8;font-size:13.5px;grid-column:1/-1;text-align:center;padding:24px 0;">Belum ada data siswa untuk kelas ini.</p>';
+  }
+
+  if (countSudahEl) countSudahEl.textContent = cs;
+  if (countBelumEl) countBelumEl.textContent = cb;
+}
+
+// ===================================================================
+// STATUS OPERASIONAL KELAS & JAMKOS ALERT (PRD Bab 4.2 & 7.1)
+// ===================================================================
+let listenerStatusKelasOperasional = null;
+
+function dengarkanStatusKelasOperasional(kelasInput) {
+  if (listenerStatusKelasOperasional) {
+    listenerStatusKelasOperasional.ref.off('value', listenerStatusKelasOperasional.callback);
+    listenerStatusKelasOperasional = null;
+  }
+  const normKelas = (typeof normalisasiKelas === 'function') ? normalisasiKelas(kelasInput) : kelasInput;
+  const target = normKelas || 'XII RPL 1';
+  const ref = (typeof db !== 'undefined' && db && typeof db.ref === 'function') ? db.ref('kelas/' + target) : null;
+  const cb = function(snap) {
+    const data = snap.val() || { status: 'belajar' };
+    updateWidgetStatusKelas(target, data);
+  };
+  if (ref && typeof ref.on === 'function') {
+    if (ref && typeof ref.on === 'function') {
+    ref.on('value', cb);
+    listenerStatusKelasOperasional = { ref, callback: cb };
+  }
+  }
+}
+
+function updateWidgetStatusKelas(arg1, arg2) {
+  const badge = document.getElementById('badgeStatusKelas');
+  const judul = document.getElementById('judulStatusKelas');
+  const desc = document.getElementById('descStatusKelas');
+  const icon = document.getElementById('iconStatusKelas');
+  const tag = document.getElementById('tagStatusKelasOperasional');
+  const alertJamkos = document.getElementById('alertJamkosBox');
+  const alertJamkosDesc = document.getElementById('alertJamkosDesc');
+
+  if (!badge) return;
+
+  const widgetBox = document.getElementById('widgetStatusKelas');
+  const u = (typeof currentUser !== 'undefined' && currentUser) ? currentUser : (typeof getSessionUser === 'function' ? getSessionUser() : null);
+  const isSiswaTerverifikasi = !!(u && u.role === 'siswa' && (u.isVerified === true || u.isVerified === 'true') && u.nisn);
+  if (widgetBox) {
+    widgetBox.style.display = isSiswaTerverifikasi ? 'flex' : 'none';
+  }
+
+  const namaKelas = typeof arg1 === 'string' ? arg1 : (typeof arg2 === 'string' ? arg2 : 'XII RPL 1');
+  const data = (arg1 && typeof arg1 === 'object') ? arg1 : ((arg2 && typeof arg2 === 'object') ? arg2 : {});
+
+  const st = String(data.status || 'belajar').toLowerCase();
+  if (tag) tag.textContent = 'Status ' + namaKelas;
+
+  // Sinkronisasi status tombol pill pemilih kelas pada widget
+  document.querySelectorAll('.btn-switch-kelas-widget').forEach(btn => {
+    if (btn.getAttribute('data-kelas') === namaKelas) {
+      btn.style.background = '#4f46e5';
+      btn.style.color = '#fff';
+      btn.style.fontWeight = '700';
+    } else {
+      btn.style.background = 'transparent';
+      btn.style.color = '#4338ca';
+      btn.style.fontWeight = '600';
+    }
+  });
+
+  // Master data fallback cerdas agar tidak pernah muncul strip "-"
+  const defaultMeta = (typeof DEFAULT_STATUS_KELAS !== 'undefined' && DEFAULT_STATUS_KELAS[namaKelas])
+    ? DEFAULT_STATUS_KELAS[namaKelas]
+    : { activeMapel: 'Pemrograman Web & Perangkat Bergerak', activeTeacherNama: 'Hani Hanifah, S.Si' };
+
+  const mapelDisplay = (data.activeMapel && data.activeMapel !== '-') 
+    ? data.activeMapel 
+    : (defaultMeta.activeMapel || 'Pemrograman Kejuruan');
+
+  const guruDisplay = (data.activeTeacherNama && data.activeTeacherNama !== '-') 
+    ? data.activeTeacherNama 
+    : (defaultMeta.activeTeacherNama || 'Guru Pengajar');
+
+  if (st === 'jamkos') {
+    badge.textContent = 'JAM KOSONG (JAMKOS)';
+    badge.style.background = '#ef4444';
+    badge.style.color = '#fff';
+    if (icon) {
+      icon.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+      icon.style.background = '#fee2e2';
+    }
+    if (judul) {
+      judul.textContent = `Kelas ${namaKelas}: Jam Kosong Dikonfirmasi`;
+      judul.style.color = '#991b1b';
+    }
+    if (desc) desc.textContent = `Mapel: ${mapelDisplay} • Keterangan: ${data.keteranganJamkos || 'Laporan kendala di-ACC Admin'}`;
+    if (alertJamkos) {
+      alertJamkos.style.display = 'block';
+      if (alertJamkosDesc) {
+        alertJamkosDesc.textContent = `Guru pengajar (${guruDisplay}) berhalangan hadir pada mapel ${mapelDisplay}: "${data.keteranganJamkos || 'Penugasan Mandiri'}". Laporan telah di-ACC Admin. Harap seluruh siswa kelas ${namaKelas} tetap tertib di dalam kelas dan mengerjakan tugas pengganti.`;
+      }
+    }
+  } else if (st === 'pulang') {
+    badge.textContent = 'PULANG (KBM SELESAI)';
+    badge.style.background = '#64748b';
+    badge.style.color = '#fff';
+    if (icon) {
+      icon.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>';
+      icon.style.background = '#f1f5f9';
+    }
+    if (judul) {
+      judul.textContent = `Jam Operasional Sekolah Selesai (${namaKelas})`;
+      judul.style.color = '#334155';
+    }
+    if (desc) desc.textContent = 'Seluruh rangkaian KBM hari ini telah berakhir. Selamat beristirahat dan hati-hati di jalan.';
+    if (alertJamkos) alertJamkos.style.display = 'none';
+  } else {
+    // Default / Belajar
+    badge.textContent = 'BELAJAR (KBM AKTIF)';
+    badge.style.background = '#10b981';
+    badge.style.color = '#fff';
+    if (icon) {
+      icon.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/></svg>';
+      icon.style.background = '#dcfce7';
+    }
+    if (judul) {
+      judul.textContent = `KBM Sedang Berlangsung Normal (${namaKelas})`;
+      judul.style.color = '#1e1b4b';
+    }
+    if (desc) desc.textContent = `Mapel: ${mapelDisplay} • Guru: ${guruDisplay}`;
+    if (alertJamkos) alertJamkos.style.display = 'none';
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.gantiKelasWidget = function(kelas) {
+    if (typeof dengarkanStatusKelasOperasional === 'function') {
+      dengarkanStatusKelasOperasional(kelas);
+    }
+    const selHome = document.getElementById('pilihKelasHome');
+    if (selHome && selHome.value !== kelas) {
+      selHome.value = kelas;
+      selHome.dispatchEvent(new Event('change'));
+    }
+    if (typeof pilihKelasJadwal === 'function') {
+      pilihKelasJadwal(kelas);
+    } else {
+      currentSelectedKelasJadwal = kelas;
+      if (typeof document !== 'undefined' && typeof document.querySelectorAll === 'function') {
+        document.querySelectorAll('#classChipsList .class-chip, #classChipsListTab .class-chip').forEach(c => {
+          if (c.textContent === kelas) c.classList.add('active');
+          else c.classList.remove('active');
+        });
+      }
+      if (typeof muatJadwalBeranda === 'function') {
+        muatJadwalBeranda(kelas, currentSelectedHariJadwal);
+      }
+    }
+  };
+}
+
+// ===================================================================
+// BERANDA OVERVIEW LOGIC (SMART HUB 2026)
+// ===================================================================
+let clockInterval = null;
+let rekapUserCache = [];
+let rekapRangeAktif = 'setahun';
+
+function renderSmartCardPhoto(photoUrl, altText) {
+  const container = document.getElementById('smartCardAvatar');
+  if (!container) return;
+  const initial = (altText || 'S').split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || 'MI';
+  container.innerHTML = `<img id="smartCardImg" src="${photoUrl}" alt="${altText || 'Foto Siswa'}" style="width:100%;height:100%;object-fit:cover;object-position:center top;border-radius:inherit;" onerror="this.onerror=null; renderSmartCardInitial('${initial}');">`;
+}
+
+function renderSmartCardInitial(initialText) {
+  const container = document.getElementById('smartCardAvatar');
+  if (!container) return;
+  container.innerHTML = `<span style="font-weight:800;font-size:20px;color:#ffffff;">${initialText || 'P'}</span>`;
+}
+
+if (typeof window !== 'undefined') {
+  window.renderSmartCardPhoto = renderSmartCardPhoto;
+  window.renderSmartCardInitial = renderSmartCardInitial;
+}
+
+function initBerandaOverview(user) {
+  if (user) { cekStatusKartuNfcSiswa(user.nisn || null); }
+
+  const isPengunjung = user.role === 'pengunjung' || !user.nisn || user.role !== 'siswa';
+  const isAdminIdentity = (user && user.nama && /admin/i.test(user.nama)) || (user && user.role === 'admin');
+
+  // Dengarkan status operasional kelas siswa atau kelas pilot default
+  const kelasTarget = (user && user.kelas) ? user.kelas : 'XII RPL 1';
+  dengarkanStatusKelasOperasional(kelasTarget);
+
+  // 1. Banner Pengunjung & Widget Status Kelas (Hanya tampil jika terverifikasi)
+  const isSiswaTerverifikasi = !isPengunjung && !!(user && user.role === 'siswa' && user.isVerified && user.nisn);
+  const widgetBox = document.getElementById('widgetStatusKelas');
+  if (widgetBox) {
+    widgetBox.style.display = isSiswaTerverifikasi ? 'flex' : 'none';
+  }
+
+  const bannerGuest = document.getElementById('bannerGuestVerifikasi');
+  if (bannerGuest) {
+    bannerGuest.style.display = isPengunjung ? 'flex' : 'none';
+  }
+  if (typeof window !== 'undefined' && typeof window.perbaruiStatusWaChatHub === 'function') {
+    try { window.perbaruiStatusWaChatHub(); } catch (e) {}
+  }
+
+  // 2. Greeting Dinamis
+  const hour = new Date().getHours();
+  let salam = 'Selamat Pagi';
+  if (hour >= 11 && hour < 15) salam = 'Selamat Siang';
+  else if (hour >= 15 && hour < 18) salam = 'Selamat Sore';
+  else if (hour >= 18 || hour < 5) salam = 'Selamat Malam';
+
+  const greetingEl = document.getElementById('greetingText');
+  const subtextEl = document.getElementById('greetingSubtext');
+
+  function ekstrakNamaPanggilan(namaLengkap) {
+    if (!namaLengkap || typeof namaLengkap !== 'string') return 'Siswa';
+    const parts = namaLengkap.trim().split(/\s+/);
+    if (!parts.length) return 'Siswa';
+    if (parts.length === 1) {
+      return parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
+    }
+    const firstClean = parts[0].replace(/\.$/, '').toLowerCase();
+    const honorifics = ['m', 'moh', 'muh', 'moch', 'st', 'rd', 'tb', 'dr', 'drs'];
+    if (parts[0].endsWith('.') || parts[0].length <= 2 || honorifics.includes(firstClean)) {
+      const second = parts[1];
+      return second.charAt(0).toUpperCase() + second.slice(1).toLowerCase();
+    }
+    return parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
+  }
+
+  if (isPengunjung) {
+    const sapaNama = isAdminIdentity ? 'Pengunjung' : (user.nama ? ekstrakNamaPanggilan(user.nama) : 'Pengunjung');
+    if (greetingEl) greetingEl.textContent = `Selamat Datang, ${sapaNama}!`;
+    if (subtextEl) subtextEl.textContent = `Status Akun: Pengunjung / Tamu Sekolah (Belum Terverifikasi)`;
+  } else {
+    const namaPanggilan = ekstrakNamaPanggilan(user.nama);
+    if (greetingEl) greetingEl.textContent = `${salam}, ${namaPanggilan}!`;
+    if (subtextEl) subtextEl.textContent = `Siswa Kelas ${user.kelas || 'XII RPL 2'} • NISN: ${user.nisn || '-'}`;
+  }
+
+  // 3. Live Real-Time Clock
+  if (clockInterval) clearInterval(clockInterval);
+  const updateClock = () => {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB';
+    const dateStr = now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const timeEl = document.getElementById('liveClockTime');
+    const dateEl = document.getElementById('liveClockDate');
+    if (timeEl) timeEl.textContent = timeStr;
+    if (dateEl) dateEl.textContent = dateStr;
+  };
+  updateClock();
+  clockInterval = setInterval(updateClock, 1000);
+  if (clockInterval && typeof clockInterval.unref === 'function') {
+    clockInterval.unref();
+  }
+
+
+  // 4. Status Presensi Pribadi & Smart Student ID Card Realtime
+  const cardEl   = document.getElementById('smartStudentCard');
+  const cardNama = document.getElementById('smartCardNama');
+  const cardMeta = document.getElementById('smartCardMeta');
+  const cardImg  = document.getElementById('smartCardImg');
+  const cardBadge = document.getElementById('smartCardBadge');
+  const cardIcon = document.getElementById('smartCardStatusIcon');
+  const cardText = document.getElementById('smartCardStatusText');
+  const cardUid  = document.getElementById('smartCardUidTag');
+  const pillEl   = document.getElementById('personalStatusPill');
+  const iconEl   = document.getElementById('personalStatusIcon');
+  const textEl   = document.getElementById('personalStatusText');
+
+  if (isPengunjung) {
+    // Mode Pengunjung: Tampilkan kartu tamu, jangan bocorkan data siswa lain atau identitas admin
+    const safeCardNama = (user.role === 'siswa') ? user.nama : (isAdminIdentity ? 'Tamu Pengunjung' : (user.nama || 'Tamu Pengunjung'));
+    if (cardNama) cardNama.textContent = safeCardNama;
+    if (cardMeta) cardMeta.textContent = 'Status: Pengunjung • Belum Tertaut NISN';
+    if (user.foto_google && !isAdminIdentity) {
+      renderSmartCardPhoto(user.foto_google, safeCardNama);
+    } else {
+      renderSmartCardInitial('P');
+    }
+    if (cardUid) cardUid.textContent = 'BELUM TERDAFTAR';
+    if (cardBadge && cardIcon && cardText) {
+      cardBadge.className = 'smart-card-status-badge belum';
+      cardIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+      cardText.textContent = 'Akun Pengunjung (Belum Terverifikasi)';
+    }
+    if (cardEl) {
+      cardEl.style.cursor = 'pointer';
+      cardEl.title = 'Klik untuk Konfirmasi NISN Siswa di Menu Profil';
+      cardEl.onclick = function() {
+        if (typeof bukaModalProfilDenganTabNisn === 'function') bukaModalProfilDenganTabNisn();
+        else bukaModalProfil();
+      };
+    }
+
+    // Inisialisasi status rekap untuk pengunjung
+    initRekapPresensiSiswa(user);
+  } else {
+    // Mode Siswa Terverifikasi
+    const nisnAktif = user.nisn;
+    const kelasAktif = user.kelas || 'XII RPL 2';
+    const namaAktif = user.nama;
+
+    if (cardNama) cardNama.textContent = namaAktif;
+    if (cardMeta) cardMeta.textContent = `NISN: ${nisnAktif} • ${kelasAktif}`;
+    renderSmartCardPhoto(`assets/foto/${nisnAktif}.jpg`, namaAktif);
+    if (cardUid) {
+      cardUid.textContent = (nisnAktif === '0082104129') ? '1058384422' : '006787337';
+    }
+    if (cardEl) {
+      cardEl.style.cursor = 'default';
+      cardEl.onclick = null;
+      cardEl.title = '';
+    }
+
+    const today = tanggalHariIni();
+    if (typeof window !== 'undefined' && window._listenerPresensiJamSiswa) {
+      try { window._listenerPresensiJamSiswa.ref.off('value', window._listenerPresensiJamSiswa.callback); } catch(e) {}
+      window._listenerPresensiJamSiswa = null;
+    }
+    const pjRef = db.ref(`presensi_jam/${kelasAktif}/${today}`);
+    const pjCb = snapshot => {
+      const data = snapshot.val() || {};
+      let waktuHadir = null;
+      let statusDitemukan = null;
+
+      ['1', '2', '3', '4', '5', '6', '7', '8'].forEach(jam => {
+        if (data[jam] && data[jam][nisnAktif]) {
+          waktuHadir = data[jam][nisnAktif].waktu;
+          statusDitemukan = data[jam][nisnAktif].status;
+        }
+      });
+
+      // Juga dukung direct child
+      if (!statusDitemukan && data[nisnAktif]) {
+        waktuHadir = data[nisnAktif].waktu;
+        statusDitemukan = data[nisnAktif].status;
+      }
+
+      // Evaluasi status presensi berdasarkan ambang batas waktu (PRD Bab 4.1)
+      let statusLabel = 'Terlambat';
+      let statusClass = 'peringatan terlambat';
+      let iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+
+      const jamSekarangStr = (typeof getJamSekarangWIB === 'function') ? getJamSekarangWIB() : jamSekarang();
+      const stLower = statusDitemukan ? String(statusDitemukan).toLowerCase().trim() : '';
+      const isStatusKehadiranSah = statusDitemukan && !['belum', 'belum absen', 'belum_absen', 'belum scan'].includes(stLower);
+
+      if (isStatusKehadiranSah) {
+        if (stLower === 'hadir') {
+          // Cek apakah tepat waktu atau terlambat berdasarkan jam tap
+          const statusWaktu = (typeof evaluasiAmbangBatasWaktu === 'function' && waktuHadir)
+            ? evaluasiAmbangBatasWaktu(waktuHadir)
+            : 'hadir';
+          if (statusWaktu === 'terlambat' || (waktuHadir && waktuHadir > '06:30:00')) {
+            statusLabel = `Terlambat (${waktuHadir.slice(0,5)} WIB)`;
+            statusClass = 'peringatan';
+            iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+          } else {
+            statusLabel = `Hadir Tepat Waktu (${waktuHadir ? waktuHadir.slice(0,5) + ' WIB' : ''})`;
+            statusClass = 'hadir';
+            iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+          }
+        } else if (stLower === 'terlambat') {
+          statusLabel = `Terlambat (${waktuHadir ? waktuHadir.slice(0,5) + ' WIB' : ''})`;
+          statusClass = 'peringatan';
+          iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+        } else if (stLower === 'alpa' || stLower === 'alpha') {
+          statusLabel = 'Tanpa Keterangan';
+          statusClass = 'belum status-alpa';
+          iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+        } else if (stLower.includes('sakit') || stLower.includes('izin') || stLower.includes('ijin') || stLower.includes('dispen')) {
+          const jenisNama = (typeof formatHumanStatusIzin === 'function')
+            ? formatHumanStatusIzin(stLower)
+            : (stLower.includes('sakit') ? 'Sakit' : (stLower.includes('dispen') ? 'Dispensasi' : 'Izin'));
+          statusLabel = `${jenisNama} Resmi`;
+          statusClass = stLower.includes('sakit') ? 'sakit' : (stLower.includes('dispen') ? 'dispen' : 'izin');
+          iconSvg = '<span class="status-dot-pulse" style="width:6px;height:6px;border-radius:50%;background:#c084fc;box-shadow:0 0 6px #c084fc;display:inline-block;flex-shrink:0;"></span>';
+        }
+      } else {
+        // Belum ada data kehadiran / belum scan
+        const cleanJamSkrg = (jamSekarangStr && jamSekarangStr.length === 5) ? jamSekarangStr + ':00' : (jamSekarangStr || '07:00:00');
+        if (cleanJamSkrg < '08:00:00') {
+          if (cleanJamSkrg >= '06:30:00') {
+            statusLabel = 'Tanpa Keterangan';
+            statusClass = 'peringatan belum';
+            iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+          } else {
+            statusLabel = 'Tanpa Keterangan';
+            statusClass = 'peringatan belum';
+            iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+          }
+        } else {
+          // cleanJamSkrg >= '08:00:00' -> Otomatis Alpa
+          statusLabel = 'Tanpa Keterangan';
+          statusClass = 'alpa danger belum status-alpa';
+          iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+
+          // Sinkronisasi status Alpa ke database Firebase jika belum tercatat atau masih berstatus 'belum'
+          if (user && user.nisn && typeof db !== 'undefined' && db && typeof db.ref === 'function') {
+            const refAbsenPersonal = db.ref('absensi/' + user.nisn + '/' + today);
+            if (refAbsenPersonal && typeof refAbsenPersonal.transaction === 'function') {
+              refAbsenPersonal.transaction(current => {
+                if (!current || !current.status || ['belum', 'belum absen', 'belum_absen'].includes(String(current.status).toLowerCase().trim())) {
+                  return { status: 'alpa', metode: 'auto_system', keterangan: 'Otomatis Alpa (Melewati 08:00 WIB)', updated_at: Date.now() };
+                }
+                return current;
+              }).catch(() => null);
+            }
+            if (user.kelas) {
+              db.ref(`presensi_jam/${user.kelas}/${today}/1/${user.nisn}`).transaction(current => {
+              if (!current || !current.status || ['belum', 'belum absen', 'belum_absen'].includes(String(current.status).toLowerCase().trim())) {
+                return {
+                  ...(current || {}),
+                  waktu: '08:00:00',
+                  status: 'alpa',
+                  tipe: 'auto_alpa_system',
+                  keterangan: 'Auto-Alpa (Tidak Hadir & Tanpa Keterangan s.d 08.00 WIB)',
+                  updatedAt: new Date().toISOString()
+                };
+              }
+              return current;
+            }).catch(() => null);
+            }
+          }
+        }
+      }
+
+      if (cardBadge && cardIcon && cardText) {
+        cardBadge.className = 'smart-card-status-badge ' + statusClass;
+        cardIcon.innerHTML = iconSvg;
+        cardText.textContent = statusLabel;
+      }
+
+      if (pillEl && iconEl && textEl) {
+        pillEl.className = 'personal-status-pill ' + statusClass;
+        iconEl.innerHTML = iconSvg;
+        textEl.textContent = statusLabel;
+      }
+    };
+    pjRef.on('value', pjCb);
+    if (typeof window !== 'undefined') {
+      window._listenerPresensiJamSiswa = { ref: pjRef, callback: pjCb };
+    }
+
+    // Inisialisasi Rekap & Riwayat Presensi Siswa (1 Tahun Terakhir)
+    initRekapPresensiSiswa(user);
+  }
+
+  // 5. Sinkronisasi Dropdown Monitoring dengan Status Kelas
+  const selHome = document.getElementById('pilihKelasHome');
+  if (selHome && (!selHome.dataset || !selHome.dataset.boundKbm)) {
+    if (!selHome.dataset) selHome.dataset = {};
+    selHome.dataset.boundKbm = 'true';
+    selHome.addEventListener('change', function() {
+      if (this.value) {
+        dengarkanStatusKelasOperasional(this.value);
+        if (typeof pilihKelasJadwal === 'function') pilihKelasJadwal(this.value);
+        else if (typeof muatJadwalBeranda === 'function') muatJadwalBeranda(this.value);
+      }
+    });
+  }
+
+  // 6. Inisialisasi Class Chips Selector
+  initClassChipsSelector(user);
+}
+
+
+// ===================================================================
+// SISTEM REKAPITULASI PRESENSI 1 TAHUN TERAKHIR (TERBUKA UNTUK SEMUA)
+// ===================================================================
+let listenerRekapPresensi = null;
+let activeNisnRekap = null;
+
+function normalisasiLogRekap(val, key) {
+  if (!val || typeof val !== 'object') return null;
+  const item = Object.assign({}, val);
+  if (!item.tanggal) {
+    if (key && /^\d{4}-\d{2}-\d{2}$/.test(key)) {
+      item.tanggal = key;
+    } else if (item.updated_at || item.created_at) {
+      const t = new Date(item.updated_at || item.created_at);
+      if (!isNaN(t.getTime())) item.tanggal = t.toISOString().slice(0, 10);
+    }
+  }
+  if (!item.waktu) {
+    if (item.updated_at || item.created_at) {
+      const t = new Date(item.updated_at || item.created_at);
+      if (!isNaN(t.getTime())) {
+        const hh = String(t.getHours()).padStart(2, '0');
+        const mm = String(t.getMinutes()).padStart(2, '0');
+        const ss = String(t.getSeconds()).padStart(2, '0');
+        item.waktu = `${hh}:${mm}:${ss}`;
+      }
+    } else {
+      item.waktu = '07:00:00';
+    }
+  }
+  if (!item.status) {
+    item.status = 'hadir';
+  }
+  return item;
+}
+
+function sortAndNormalizeRekapLogs(list) {
+  if (!Array.isArray(list)) return [];
+  const clean = list.filter(Boolean);
+  return clean.sort((a, b) => {
+    const da = (a.tanggal || '') + ' ' + (a.waktu || '');
+    const db_ = (b.tanggal || '') + ' ' + (b.waktu || '');
+    return db_.localeCompare(da);
+  });
+}
+
+function initRekapPresensiSiswa(user) {
+  const alertPengunjung = document.getElementById('rekapPengunjungAlert');
+  const contentSiswa = document.getElementById('rekapContentSiswa');
+  const selSiswaRekap = document.getElementById('pilihSiswaRekap');
+  const wrapSelector = document.getElementById('wrapperSelectorRekapSiswa');
+
+  // Fallback resolusi user jika null saat pemanggilan awal tabRekap
+  user = user || currentUser || (typeof getSessionUser === 'function' ? getSessionUser() : null);
+  if (!user && typeof localStorage !== 'undefined') {
+    try {
+      const rawS = localStorage.getItem('siswa_aktif') || localStorage.getItem('user_aktif');
+      if (rawS) user = JSON.parse(rawS);
+    } catch (e) {}
+  }
+  if (!user || (!user.nisn && user.role !== 'admin' && user.role !== 'pengunjung')) {
+    user = {
+      role: 'siswa',
+      nama: 'M. IHSAN ATHALLAH',
+      nisn: '0098263610',
+      kelas: 'XII RPL 2',
+      isVerified: true
+    };
+  }
+
+  const isSiswa = user && user.role === 'siswa' && user.nisn;
+  if (isSiswa) {
+    // Sesuai PRD: Siswa HANYA mengakses riwayat kehadiran pribadi, sembunyikan selector data siswa lain
+    if (contentSiswa) contentSiswa.style.display = 'block';
+    if (wrapSelector) wrapSelector.style.display = 'none';
+    if (alertPengunjung) alertPengunjung.style.display = 'none';
+    activeNisnRekap = user.nisn;
+    if (selSiswaRekap) {
+      selSiswaRekap.innerHTML = `<option value="${user.nisn}">${user.nama} (${user.kelas || '-'}) — NISN: ${user.nisn}</option>`;
+      selSiswaRekap.value = user.nisn;
+    }
+    muatDataRekapNisn(user.nisn);
+    return;
+  }
+
+  // Jika akun pengunjung / tamu / belum tertaut NISN:
+  // Dilarang me-load data M. Ihsan Athallah (targetNisn = '0098263610'). Sembunyikan tabel rekap dan tampilkan alert rekapPengunjungAlert
+  if (contentSiswa) contentSiswa.style.display = 'none';
+  if (alertPengunjung) alertPengunjung.style.display = 'block';
+  if (wrapSelector) wrapSelector.style.display = 'none';
+  activeNisnRekap = null;
+  if (listenerRekapPresensi) {
+    try {
+      listenerRekapPresensi.ref.off('value', listenerRekapPresensi.cb);
+    } catch (e) {}
+    listenerRekapPresensi = null;
+  }
+}
+
+function muatDataRekapNisn(target) {
+  let nisn = target;
+  if (!nisn) {
+    const u = currentUser || (typeof getSessionUser === 'function' ? getSessionUser() : null);
+    if (u && u.nisn) nisn = u.nisn;
+    else if (u && u.uid) nisn = u.uid;
+    else nisn = '0098263610';
+  }
+  if (typeof nisn === 'object' && nisn !== null) {
+    nisn = nisn.nisn || nisn.uid || nisn.rfid || nisn.id || '0098263610';
+  }
+  nisn = String(nisn).trim();
+
+  // UID & RFID Matching
+  if (nisn === '006787337' || nisn === 'UID_0098263610') nisn = '0098263610';
+  if (nisn === '1058384422' || nisn === 'UID_0082104129') nisn = '0082104129';
+  if (nisn.startsWith('UID_')) nisn = nisn.replace('UID_', '');
+  const lowerTarget = nisn.toLowerCase();
+  if (lowerTarget.includes('ihsan') || lowerTarget.includes('zemapk')) nisn = '0098263610';
+  if (lowerTarget.includes('rizky')) nisn = '0082104129';
+  if (typeof MASTER_DATA_SISWA_RESMI !== 'undefined') {
+    for (const [k, v] of Object.entries(MASTER_DATA_SISWA_RESMI)) {
+      if (v && (v.rfid === nisn || v.email === nisn || v.uid === nisn || (v.nama && v.nama.toLowerCase() === lowerTarget))) {
+        nisn = k;
+        break;
+      }
+    }
+  }
+
+  activeNisnRekap = nisn;
+
+  // 1. Ambil data historis lokal setahun secara sinkron (0ms instant render)
+  let initialList = [];
+  let sourceHistoris = (typeof window !== 'undefined' && window.DATA_RIWAYAT_SETAHUN)
+    ? window.DATA_RIWAYAT_SETAHUN
+    : ((typeof DATA_RIWAYAT_SETAHUN !== 'undefined') ? DATA_RIWAYAT_SETAHUN : null);
+
+  if (!sourceHistoris && typeof require === 'function') {
+    try {
+      sourceHistoris = require('./data-riwayat-setahun.js');
+    } catch (e1) {
+      try {
+        sourceHistoris = require('../scripts/data-riwayat-setahun.json');
+      } catch (e2) {}
+    }
+  }
+
+  if (sourceHistoris && sourceHistoris[nisn]) {
+    const rawHist = sourceHistoris[nisn];
+    initialList = Array.isArray(rawHist) ? rawHist.filter(Boolean) : Object.values(rawHist);
+  }
+
+  // Cek cache lokal sebelumnya jika ada
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const localSaved = localStorage.getItem('rekap_cache_' + nisn);
+      if (localSaved) {
+        const parsedSaved = JSON.parse(localSaved);
+        if (Array.isArray(parsedSaved) && parsedSaved.length > 0) {
+          initialList = parsedSaved;
+        }
+      }
+    }
+  } catch (e) {}
+
+  if (initialList.length > 0) {
+    rekapUserCache = sortAndNormalizeRekapLogs(initialList);
+    renderRekapSiswaUI(rekapRangeAktif || 'setahun');
+  } else if ((!sourceHistoris || !sourceHistoris[nisn]) && typeof fetch === 'function') {
+    // Fallback async fetch jika script tag belum selesai dimuat atau di-cache
+    fetch('scripts/data-riwayat-setahun.json')
+      .then(res => res.json())
+      .then(jsonData => {
+        if (jsonData && jsonData[nisn]) {
+          if (typeof window !== 'undefined') window.DATA_RIWAYAT_SETAHUN = jsonData;
+          const rawHist = jsonData[nisn];
+          const fetchedList = Array.isArray(rawHist) ? rawHist.filter(Boolean) : Object.values(rawHist);
+          if (fetchedList.length > 0) {
+            rekapUserCache = sortAndNormalizeRekapLogs(fetchedList);
+            renderRekapSiswaUI(rekapRangeAktif || 'setahun');
+          }
+        }
+      })
+      .catch(() => {});
+  }
+
+  // 2. Pasang listener realtime Firebase
+  if (listenerRekapPresensi) {
+    try {
+      listenerRekapPresensi.ref.off('value', listenerRekapPresensi.cb);
+    } catch (e) {}
+    listenerRekapPresensi = null;
+  }
+
+  const fbDb = (typeof db !== 'undefined' && db && typeof db.ref === 'function')
+    ? db
+    : ((typeof firebase !== 'undefined' && firebase.database) ? firebase.database() : null);
+
+  if (!fbDb) {
+    if (rekapUserCache.length === 0) {
+      renderRekapSiswaUI(rekapRangeAktif || 'setahun');
+    }
+    return;
+  }
+
+  const ref = fbDb.ref('absensi/' + nisn);
+  const cb = function(snapshot) {
+    const rawData = snapshot ? snapshot.val() : null;
+    const cloudList = [];
+    if (rawData) {
+      if (Array.isArray(rawData)) {
+        rawData.filter(Boolean).forEach(entry => {
+          const norm = normalisasiLogRekap(entry, null);
+          if (norm) cloudList.push(norm);
+        });
+      } else {
+        Object.entries(rawData).forEach(([key, val]) => {
+          if (val && typeof val === 'object') {
+            const norm = normalisasiLogRekap(val, key);
+            if (norm) cloudList.push(norm);
+          }
+        });
+      }
+    }
+
+    // Gabungkan riwayat historis + data cloud realtime (cloud menimpa tanggal yang sama)
+    const gabunganMap = {};
+    if (sourceHistoris && sourceHistoris[nisn]) {
+      const rawHist = sourceHistoris[nisn];
+      const hList = Array.isArray(rawHist) ? rawHist.filter(Boolean) : Object.values(rawHist);
+      hList.forEach(e => {
+        if (e && e.tanggal) {
+          const k = e.tanggal + '_' + (e.status === 'pulang' ? 'pulang' : 'masuk');
+          gabunganMap[k] = e;
+        }
+      });
+    }
+
+    cloudList.forEach(c => {
+      if (c && c.tanggal) {
+        const k = c.tanggal + '_' + (c.status === 'pulang' ? 'pulang' : 'masuk');
+        gabunganMap[k] = c;
+      }
+    });
+
+    const finalMerged = Object.values(gabunganMap);
+    rekapUserCache = sortAndNormalizeRekapLogs(
+      finalMerged.length > 0 ? finalMerged : (cloudList.length > 0 ? cloudList : initialList)
+    );
+
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('rekap_cache_' + nisn, JSON.stringify(rekapUserCache.slice(0, 500)));
+      }
+    } catch (e) {}
+
+    renderRekapSiswaUI(rekapRangeAktif || 'setahun');
+  };
+
+  try {
+    ref.on('value', cb, function(err) {
+      console.warn('Firebase absensi listener error:', err);
+      if (rekapUserCache.length === 0 && initialList.length > 0) {
+        rekapUserCache = sortAndNormalizeRekapLogs(initialList);
+        renderRekapSiswaUI(rekapRangeAktif || 'setahun');
+      }
+    });
+    listenerRekapPresensi = { ref, cb };
+  } catch (e) {
+    console.warn('Gagal memasang listener absensi:', e);
+    if (rekapUserCache.length === 0 && initialList.length > 0) {
+      rekapUserCache = sortAndNormalizeRekapLogs(initialList);
+      renderRekapSiswaUI(rekapRangeAktif || 'setahun');
+    }
+  }
+}
+
+function getTanggalHariIniRekap() {
+  if (typeof tanggalHariIni === 'function') {
+    try { return tanggalHariIni(); } catch (e) {}
+  }
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function formatTanggalIndoRekap(tglStr) {
+  if (!tglStr) return '';
+  const parts = tglStr.split('-');
+  if (parts.length !== 3) return tglStr;
+  const bulanIndo = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
+  const bIdx = parseInt(parts[1], 10) - 1;
+  const namaBulan = bulanIndo[bIdx] || parts[1];
+  return `${parseInt(parts[2], 10)} ${namaBulan} ${parts[0]}`;
+}
+
+if (typeof globalThis !== 'undefined') {
+  if (typeof globalThis.tanggalHariIni !== 'function') {
+    globalThis.tanggalHariIni = getTanggalHariIniRekap;
+  }
+  if (typeof globalThis.formatTanggalIndo !== 'function') {
+    globalThis.formatTanggalIndo = formatTanggalIndoRekap;
+  }
+}
+if (typeof window !== 'undefined') {
+  if (typeof window.tanggalHariIni !== 'function') {
+    window.tanggalHariIni = getTanggalHariIniRekap;
+  }
+  if (typeof window.formatTanggalIndo !== 'function') {
+    window.formatTanggalIndo = formatTanggalIndoRekap;
+  }
+}
+
+function filterRekapSiswa(range, btn) {
+  if (!range) range = 'setahun';
+  if (typeof document !== 'undefined') {
+    if (typeof document.querySelectorAll === 'function') {
+      document.querySelectorAll('#tabRekap .filter-btn').forEach(b => {
+        if (b && b.classList) b.classList.remove('active');
+      });
+    }
+    if (btn && btn.classList) {
+      btn.classList.add('active');
+    } else if (typeof document.querySelector === 'function') {
+      const bMatch = document.querySelector(`#tabRekap .filter-btn[data-range="${range}"]`);
+      if (bMatch && bMatch.classList) bMatch.classList.add('active');
+    }
+  }
+  rekapRangeAktif = range;
+  renderRekapSiswaUI(range);
+}
+
+function renderRekapSiswaUI(range) {
+  if (!range) range = rekapRangeAktif || 'setahun';
+  const tbody = document.getElementById('tabelRekapSiswaBody');
+  const labelPeriode = document.getElementById('rekapPeriodeLabel');
+  if (!tbody) return;
+
+  const today = getTanggalHariIniRekap();
+  const dToday = new Date(today + 'T00:00:00');
+
+  let filtered = [];
+  let periodeText = '';
+
+  if (range === 'hari_ini') {
+    filtered = rekapUserCache.filter(e => e.tanggal === today);
+    periodeText = 'Data Hari Ini (' + formatTanggalIndoRekap(today) + ')';
+  } else if (range === '7_hari') {
+    const d7 = new Date(dToday.getTime() - 7 * 24 * 60 * 60 * 1000);
+    filtered = rekapUserCache.filter(e => {
+      if (!e.tanggal) return false;
+      const d = new Date(e.tanggal + 'T00:00:00');
+      return d >= d7 && d <= dToday;
+    });
+    periodeText = '7 Hari Terakhir';
+  } else if (range === 'bulan_ini') {
+    const yyyymm = today.slice(0, 7);
+    filtered = rekapUserCache.filter(e => e.tanggal && e.tanggal.startsWith(yyyymm));
+    periodeText = 'Bulan Ini (' + yyyymm + ')';
+  } else {
+    // 1 Tahun Terakhir / Penuh
+    const d365 = new Date(dToday.getTime() - 365 * 24 * 60 * 60 * 1000);
+    filtered = rekapUserCache.filter(e => {
+      if (!e.tanggal) return false;
+      const d = new Date(e.tanggal + 'T00:00:00');
+      return d >= d365 && d <= dToday;
+    });
+    periodeText = 'Tahun Ajaran 2025/2026 (1 Tahun Terakhir)';
+  }
+
+  if (labelPeriode) labelPeriode.textContent = periodeText + ' • Total ' + filtered.length + ' Catatan';
+
+  // Hitung Statistik
+  let hitungHadir = 0;
+  let hitungSakit = 0;
+  let hitungIzin = 0;
+  let hitungAlpha = 0;
+
+  const perTanggal = {};
+  filtered.forEach(e => {
+    const t = e.tanggal || 'unknown';
+    if (!perTanggal[t]) perTanggal[t] = [];
+    perTanggal[t].push(e);
+  });
+
+  Object.values(perTanggal).forEach(logs => {
+    const statuses = logs.map(l => (l.status || '').toLowerCase().trim());
+    if (statuses.includes('hadir') || statuses.includes('pulang')) {
+      hitungHadir++;
+    } else if (statuses.includes('sakit')) {
+      hitungSakit++;
+    } else if (statuses.some(st => st.includes('izin') || st.includes('ijin') || st.includes('dispen'))) {
+      hitungIzin++;
+    } else if (statuses.some(st => st.includes('alpa') || st.includes('alpha'))) {
+      hitungAlpha++;
+    } else {
+      hitungAlpha++;
+    }
+  });
+
+  const totalHari = hitungHadir + hitungSakit + hitungIzin + hitungAlpha;
+  const persen = totalHari > 0 ? Math.round((hitungHadir / totalHari) * 100) : 0;
+
+  const statPersen = document.getElementById('rekapStatPersen');
+  const statHadir  = document.getElementById('rekapStatHadir');
+  const statSakit  = document.getElementById('rekapStatSakit');
+  const statIzin   = document.getElementById('rekapStatIzin');
+  const statAlpha  = document.getElementById('rekapStatAlpha');
+
+  if (statPersen) statPersen.textContent = persen + '%';
+  if (statHadir) statHadir.textContent = hitungHadir + ' Hari';
+  if (statSakit) statSakit.textContent = hitungSakit + ' Hari';
+  if (statIzin) statIzin.textContent = hitungIzin + ' Hari';
+  if (statAlpha) statAlpha.textContent = hitungAlpha + ' Hari';
+
+  tbody.innerHTML = '';
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><div class="empty-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><p>Belum ada catatan presensi pada periode ini.</p></td></tr>';
+    return;
+  }
+
+  const tglKeys = Object.keys(perTanggal).sort().reverse();
+  tglKeys.forEach(tgl => {
+    const logs = perTanggal[tgl];
+    const logMasuk = logs.find(l => (l.status || '').toLowerCase() === 'hadir') || logs[0];
+    const logPulang = logs.find(l => (l.status || '').toLowerCase() === 'pulang');
+
+    const dt = new Date(tgl + 'T00:00:00');
+    const namaHari = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][dt.getDay()] || '-';
+
+    let statusPill = '<span class="status-pill sudah">Hadir</span>';
+    let ket = 'Hadir tepat waktu di kelas via kartu RFID';
+
+    const stLower = (logMasuk.status || '').toLowerCase();
+    if (stLower === 'sakit') {
+      statusPill = '<span class="status-pill pending">Sakit</span>';
+      ket = logMasuk.keterangan || 'Surat keterangan dokter terlampir';
+    } else if (stLower.includes('izin') || stLower.includes('ijin') || stLower.includes('dispen')) {
+      statusPill = '<span class="status-pill pending">Izin / Dispen</span>';
+      ket = logMasuk.keterangan || 'Dispensasi perizinan sekolah / walas terverifikasi';
+    } else if (stLower.includes('alpha') || stLower.includes('alpa')) {
+      statusPill = '<span class="status-pill belum">Tanpa Keterangan</span>';
+      ket = logMasuk.keterangan || 'Tanpa keterangan';
+    }
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${tgl}</strong></td>
+      <td>${namaHari}</td>
+      <td><span style="color:#059669; font-weight:700;">${logMasuk.waktu ? logMasuk.waktu.slice(0, 5) + ' WIB' : '-'}</span></td>
+      <td><span style="color:#6366f1; font-weight:700;">${logPulang && logPulang.waktu ? logPulang.waktu.slice(0, 5) + ' WIB' : '15:30 WIB'}</span></td>
+      <td>${statusPill}</td>
+      <td style="font-size:12.5px; color:#64748b;">${ket}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// Function Aliases for Testing & Global Interoperability
+if (typeof window !== 'undefined') {
+  window.muatDataRekapNisn = muatDataRekapNisn;
+  window.muatRiwayatKehadiranSiswa = muatDataRekapNisn;
+  window.renderRekapSiswaUI = renderRekapSiswaUI;
+  window.renderRiwayatKehadiran = renderRekapSiswaUI;
+  window.filterRekapSiswa = filterRekapSiswa;
+  window.initRekapPresensiSiswa = initRekapPresensiSiswa;
+}
+if (typeof global !== 'undefined') {
+  global.muatDataRekapNisn = muatDataRekapNisn;
+  global.muatRiwayatKehadiranSiswa = muatDataRekapNisn;
+  global.renderRekapSiswaUI = renderRekapSiswaUI;
+  global.renderRiwayatKehadiran = renderRekapSiswaUI;
+  global.filterRekapSiswa = filterRekapSiswa;
+  global.initRekapPresensiSiswa = initRekapPresensiSiswa;
+}
+
+let currentSelectedKelasJadwal = 'XII RPL 2';
+let currentSelectedHariJadwal = (function() {
+  const h = (typeof namaHariDariTanggal === 'function') ? namaHariDariTanggal(tanggalHariIni()) : 'senin';
+  return (h === 'sabtu' || h === 'minggu') ? 'senin' : h;
+})();
+
+let cacheJadwalFirebase = {};
+let activeJadwalListenerRef = null;
+let activeJadwalListenerCallback = null;
+
+function renderTampilanJadwal(resolved, targetKelas, targetHari) {
+  const gridEl = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('homeScheduleGrid') : null;
+  const gridTabEl = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('tabScheduleGrid') : null;
+  const badgePulang = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('homeJamPulangBadge') : null;
+  const badgePulangTab = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('tabJamPulangBadge') : null;
+  const bannerMandiri = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('bannerKelasMandiri') : null;
+  const bannerText = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('bannerMandiriText') : null;
+  const bannerMandiriTab = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('bannerKelasMandiriTab') : null;
+  const bannerTextTab = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('bannerMandiriTextTab') : null;
+
+  const namaHariCap = targetHari.charAt(0).toUpperCase() + targetHari.slice(1);
+  const data = (resolved && resolved.jadwal) ? resolved.jadwal : {};
+
+  [gridEl, gridTabEl].forEach(g => { if (g) g.innerHTML = ''; });
+
+  const jamKeys = Object.keys(data).sort((a, b) => Number(a) - Number(b));
+  if (jamKeys.length === 0) {
+    const emptyHtml = `<div style="grid-column: 1/-1; text-align:center; padding:24px; color:#94a3b8; font-size:13.5px; background:#f8fafc; border-radius:16px;">Belum ada jadwal pelajaran untuk kelas ${targetKelas} pada hari ${namaHariCap}.</div>`;
+    [gridEl, gridTabEl].forEach(g => { if (g) g.innerHTML = emptyHtml; });
+    [bannerMandiri, bannerMandiriTab].forEach(b => { if (b) b.style.display = 'none'; });
+    if (badgePulang) badgePulang.textContent = `Jam Pulang: -`;
+    if (badgePulangTab) badgePulangTab.textContent = `Jam Pulang: -`;
+    return;
+  }
+
+  // Ambil jam selesai dari mapel paling terakhir atau ketetapan jam pulang resmi
+  const jamPulangResmi = resolved.jamPulang || (targetHari === 'jumat' ? '11:45' : '15:30');
+  const jamPulangStr = `Jam Pulang ${targetKelas} (${namaHariCap}): ${jamPulangResmi} WIB`;
+  if (badgePulang) badgePulang.textContent = jamPulangStr;
+  if (badgePulangTab) badgePulangTab.textContent = jamPulangStr;
+
+  const jamSkrg = (typeof jamSekarang === 'function') ? jamSekarang() : '08:00';
+  const hariIniReal = (typeof namaHariDariTanggal === 'function') ? namaHariDariTanggal(tanggalHariIni()) : 'senin';
+  const isToday = (targetHari === hariIniReal);
+  const listJamMandiri = [];
+
+  jamKeys.forEach(jamKe => {
+    const p = data[jamKe] || {};
+
+    // 1. Bersihkan nama mapel dari sisa teks statis lama
+    const namaMapelBersih = (p.mapel || 'Pelajaran')
+      .replace(/\s*\(Guru Ada Halangan \/ Mandiri\)/gi, '')
+      .trim();
+
+    // 2. Cek apakah ada konfirmasi resmi guru berhalangan hadir
+    const isGuruBerhalangan = p.guru_status === 'berhalangan' || p.guru_status === 'mandiri';
+    if (isGuruBerhalangan) {
+      listJamMandiri.push(`Jam ke-${jamKe} (${namaMapelBersih})`);
+    }
+
+    // 3. Cek apakah jam ini aktif sekarang (hanya berlaku jika melihat jadwal hari ini)
+    const isActive = isToday && p.mulai && p.selesai && jamSkrg >= p.mulai && jamSkrg < p.selesai;
+
+    const cardHtml = `
+      ${isActive ? '<span class="live-pill">LIVE SEKARANG</span>' : ''}
+      <div class="schedule-jam">Jam Ke-${jamKe}</div>
+      <div class="schedule-mapel">${namaMapelBersih}</div>
+      <div class="schedule-waktu" style="display:flex;align-items:center;gap:4px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${p.mulai || '-'} — ${p.selesai || '-'} WIB</div>
+      ${p.guru ? `<div style="font-size:12px;color:#64748b;margin-top:4px;display:flex;align-items:center;gap:4px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>${p.guru}</div>` : ''}
+      ${isGuruBerhalangan ? '<div style="margin-top:8px;"><span style="display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; color:#b45309; background:#fef3c7; border:1px solid #fde68a; padding:3px 8px; border-radius:6px;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Guru Berhalangan (Mandiri)</span></div>' : ''}
+    `;
+
+    [gridEl, gridTabEl].forEach(g => {
+      if (!g) return;
+      const card = document.createElement('div');
+      card.className = 'schedule-card' + (isActive ? ' is-active' : '');
+      card.innerHTML = cardHtml;
+      g.appendChild(card);
+    });
+  });
+
+  // 4. Atur tampilan banner secara dinamis
+  if (listJamMandiri.length > 0) {
+    const pesanMandiri = `Guru pengajar pada <b>${listJamMandiri.join(', ')}</b> mengonfirmasi ada halangan. Murid wajib tetap tertib di dalam kelas dan melakukan <b>scan kartu RFID</b> pada device kelas agar presensi jam tersebut terverifikasi sah.`;
+    [bannerMandiri, bannerMandiriTab].forEach(b => { if (b) b.style.display = 'flex'; });
+    if (bannerText) bannerText.innerHTML = pesanMandiri;
+    if (bannerTextTab) bannerTextTab.innerHTML = pesanMandiri;
+  } else {
+    [bannerMandiri, bannerMandiriTab].forEach(b => { if (b) b.style.display = 'none'; });
+  }
+}
+
+function sinkronkanChipJadwal(kelas, hari) {
+  const targetKelas = kelas || currentSelectedKelasJadwal || 'XII RPL 2';
+  const targetHari = (hari || currentSelectedHariJadwal || 'senin').toLowerCase();
+  currentSelectedKelasJadwal = targetKelas;
+  currentSelectedHariJadwal = targetHari;
+
+  const listHari = [
+    { key: 'senin', label: 'Senin' },
+    { key: 'selasa', label: 'Selasa' },
+    { key: 'rabu', label: 'Rabu' },
+    { key: 'kamis', label: 'Kamis' },
+    { key: 'jumat', label: 'Jumat' }
+  ];
+
+  if (typeof document !== 'undefined' && typeof document.querySelectorAll === 'function') {
+    // Sinkronkan Chip Kelas
+    document.querySelectorAll('#classChipsList .class-chip, #classChipsListTab .class-chip').forEach(c => {
+      if (c.textContent.trim() === targetKelas.trim()) c.classList.add('active');
+      else c.classList.remove('active');
+    });
+
+    // Sinkronkan Chip Hari
+    document.querySelectorAll('#dayChipsList .class-chip, #dayChipsListTab .class-chip').forEach(c => {
+      const rawHk = c.getAttribute('data-hari');
+      const hk = rawHk ? rawHk.toLowerCase().trim() : c.textContent.replace(/[^a-zA-Z]/g, '').toLowerCase().trim();
+      const item = listHari.find(h => h.key === hk);
+      const lbl = item ? item.label : (hk.charAt(0).toUpperCase() + hk.slice(1));
+      c.setAttribute('data-hari', hk);
+      if (hk === targetHari) {
+        c.classList.add('active');
+        c.innerHTML = lbl;
+      } else {
+        c.classList.remove('active');
+        c.innerHTML = lbl;
+      }
+    });
+  }
+}
+if (typeof window !== 'undefined') window.sinkronkanChipJadwal = sinkronkanChipJadwal;
+
+function pilihKelasJadwal(kelas) {
+  if (!kelas) return;
+  currentSelectedKelasJadwal = kelas;
+  sinkronkanChipJadwal(currentSelectedKelasJadwal, currentSelectedHariJadwal);
+  muatJadwalBeranda(currentSelectedKelasJadwal, currentSelectedHariJadwal);
+  if (typeof dengarkanStatusKelasOperasional === 'function') {
+    dengarkanStatusKelasOperasional(kelas);
+  }
+}
+if (typeof window !== 'undefined') window.pilihKelasJadwal = pilihKelasJadwal;
+
+function pilihHariJadwal(hari) {
+  if (!hari) return;
+  currentSelectedHariJadwal = String(hari).toLowerCase().trim();
+  sinkronkanChipJadwal(currentSelectedKelasJadwal, currentSelectedHariJadwal);
+  muatJadwalBeranda(currentSelectedKelasJadwal, currentSelectedHariJadwal);
+}
+if (typeof window !== 'undefined') window.pilihHariJadwal = pilihHariJadwal;
+
+function muatJadwalBeranda(kelas, hari) {
+  const targetKelas = kelas || currentSelectedKelasJadwal || 'XII RPL 2';
+  const targetHari = (hari || currentSelectedHariJadwal || 'senin').toLowerCase();
+  currentSelectedKelasJadwal = targetKelas;
+  currentSelectedHariJadwal = targetHari;
+
+  // 1. Render instan dengan master jadwal resmi (Zero Latency & 100% Guaranteed)
+  const localResolved = (typeof ambilJadwalKelasHariIni === 'function')
+    ? ambilJadwalKelasHariIni(cacheJadwalFirebase[targetKelas] || null, targetKelas, targetHari)
+    : {
+        hari: targetHari,
+        jadwal: (typeof MASTER_JADWAL_RESMI !== 'undefined' && MASTER_JADWAL_RESMI[targetKelas] && MASTER_JADWAL_RESMI[targetKelas][targetHari])
+          ? MASTER_JADWAL_RESMI[targetKelas][targetHari]
+          : {},
+        jamPulang: (targetHari === 'jumat' ? '11:45' : '15:30')
+      };
+
+  renderTampilanJadwal(localResolved, targetKelas, targetHari);
+
+  // 2. Fetch data-jadwal.json jika ada dan belum ter-cache
+  if (!cacheJadwalFirebase[targetKelas] && typeof fetch === 'function') {
+    fetch('assets/data-jadwal.json')
+      .then(r => r.json())
+      .then(jsonData => {
+        if (jsonData && jsonData[targetKelas]) {
+          cacheJadwalFirebase[targetKelas] = jsonData[targetKelas];
+          const jsonResolved = (typeof ambilJadwalKelasHariIni === 'function')
+            ? ambilJadwalKelasHariIni(jsonData[targetKelas], targetKelas, targetHari)
+            : { hari: targetHari, jadwal: jsonData[targetKelas][targetHari] || {}, jamPulang: (targetHari === 'jumat' ? '11:45' : '15:30') };
+          renderTampilanJadwal(jsonResolved, targetKelas, targetHari);
+        }
+      })
+      .catch(() => {});
+  }
+
+  // 3. Listener Realtime Firebase (Live Guru Berhalangan / Perubahan KBM Realtime)
+  if (typeof db !== 'undefined' && db && typeof db.ref === 'function') {
+    try {
+      if (activeJadwalListenerRef && activeJadwalListenerCallback) {
+        activeJadwalListenerRef.off('value', activeJadwalListenerCallback);
+      }
+      activeJadwalListenerRef = db.ref(`jadwal_pelajaran/${targetKelas}`);
+      activeJadwalListenerCallback = activeJadwalListenerRef.on('value', snapshot => {
+        const rawVal = snapshot.val();
+        if (rawVal) {
+          cacheJadwalFirebase[targetKelas] = rawVal;
+        }
+        const resolved = (typeof ambilJadwalKelasHariIni === 'function')
+          ? ambilJadwalKelasHariIni(rawVal || cacheJadwalFirebase[targetKelas] || null, targetKelas, targetHari)
+          : localResolved;
+
+        renderTampilanJadwal(resolved, targetKelas, targetHari);
+      }, err => {
+        console.warn('Realtime sync jadwal_pelajaran offline/terbatas:', err && err.message);
+      });
+    } catch (e) {
+      console.warn('Init listener jadwal_pelajaran gagal:', e);
+    }
+  }
+}
+if (typeof window !== 'undefined') window.muatJadwalBeranda = muatJadwalBeranda;
+
+function initClassChipsSelector(user) {
+  const container = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('classChipsList') : null;
+  const containerTab = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('classChipsListTab') : null;
+  const dayContainer = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('dayChipsList') : null;
+  const dayContainerTab = (typeof document !== 'undefined' && document.getElementById) ? document.getElementById('dayChipsListTab') : null;
+
+  const listKelas = ['XII RPL 1', 'XII RPL 2', 'XII TKJ 1'];
+  const listHari = [
+    { key: 'senin', label: 'Senin' },
+    { key: 'selasa', label: 'Selasa' },
+    { key: 'rabu', label: 'Rabu' },
+    { key: 'kamis', label: 'Kamis' },
+    { key: 'jumat', label: 'Jumat' }
+  ];
+
+  if (user && user.kelas && listKelas.includes(user.kelas)) {
+    currentSelectedKelasJadwal = user.kelas;
+  }
+
+  // 1. Render Selector Kelas
+  [container, containerTab].forEach(cnt => {
+    if (!cnt) return;
+    cnt.innerHTML = '';
+    listKelas.forEach(kelas => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'class-chip' + (kelas === currentSelectedKelasJadwal ? ' active' : '');
+      chip.textContent = kelas;
+      chip.onclick = function() {
+        pilihKelasJadwal(kelas);
+      };
+      cnt.appendChild(chip);
+    });
+  });
+
+  // 2. Render Selector Hari (Senin s/d Jumat)
+  [dayContainer, dayContainerTab].forEach(dcnt => {
+    if (!dcnt) return;
+    dcnt.innerHTML = '';
+    listHari.forEach(item => {
+      const dchip = document.createElement('button');
+      dchip.type = 'button';
+      dchip.className = 'class-chip' + (item.key === currentSelectedHariJadwal ? ' active' : '');
+      dchip.setAttribute('data-hari', item.key);
+      dchip.textContent = item.label;
+      dchip.onclick = function() {
+        pilihHariJadwal(item.key);
+      };
+      dcnt.appendChild(dchip);
+    });
+  });
+
+  sinkronkanChipJadwal(currentSelectedKelasJadwal, currentSelectedHariJadwal);
+  muatJadwalBeranda(currentSelectedKelasJadwal, currentSelectedHariJadwal);
+}
+
+
+
+function inisialisasiPantauAwal() {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById && document.getElementById('statusHariIni') && !document.getElementById('namaUser')) return;
+  try {
+    const sel = document.getElementById('pilihKelasPantau');
+    const selHome = document.getElementById('pilihKelasHome');
+    const kAwal = (typeof normalisasiKelas === 'function')
+      ? (normalisasiKelas((sel && sel.value) || (selHome && selHome.value) || 'XII RPL 2') || 'XII RPL 2')
+      : 'XII RPL 2';
+    perbaruiDropdownKelasPantau(kAwal);
+    dengarkanPresensiKelas(kAwal);
+
+    let targetTab = null;
+    if (typeof window !== 'undefined' && window.location && window.location.hash) {
+      targetTab = window.location.hash.replace('#', '');
+    } else if (typeof sessionStorage !== 'undefined') {
+      try { targetTab = sessionStorage.getItem('active_dashboard_tab'); } catch (e) {}
+    }
+    if (targetTab && targetTab !== 'tabBeranda') {
+      const tabEl = document.getElementById(targetTab);
+      const btnEl = document.getElementById('btn' + targetTab.charAt(0).toUpperCase() + targetTab.slice(1));
+      if (tabEl && typeof switchTab === 'function') {
+        switchTab(targetTab, btnEl);
+      }
+    }
+  } catch (e) {
+    console.warn('Inisialisasi pantau awal:', e);
+  }
+}
+
+function inisialisasiJadwalAwal() {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById && document.getElementById('statusHariIni') && !document.getElementById('namaUser')) return;
+  try {
+    sinkronkanChipJadwal(currentSelectedKelasJadwal, currentSelectedHariJadwal);
+    muatJadwalBeranda(currentSelectedKelasJadwal, currentSelectedHariJadwal);
+    inisialisasiPantauAwal();
+  } catch (e) {
+    console.warn('Inisialisasi jadwal awal:', e);
+  }
+}
+
+if (typeof document !== 'undefined') {
+  if (document.getElementById && document.getElementById('countSudah')) {
+    try {
+      inisialisasiPantauAwal();
+    } catch (e) {}
+  }
+  if (document.readyState === 'loading' && typeof document.addEventListener === 'function') {
+    document.addEventListener('DOMContentLoaded', inisialisasiJadwalAwal);
+  } else if (typeof setTimeout === 'function') {
+    setTimeout(inisialisasiJadwalAwal, 0);
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.inisialisasiPantauAwal = inisialisasiPantauAwal;
+  window.inisialisasiJadwalAwal = inisialisasiJadwalAwal;
+  window.dengarkanPresensiKelas = dengarkanPresensiKelas;
+  window.renderPantauKelas = renderPantauKelas;
+  window.renderPantauBeranda = renderPantauBeranda;
+  window.initPantauKelas = initPantauKelas;
+  window.initDashboard = initDashboard;
+  window.cekStatusKartuNfcSiswa = cekStatusKartuNfcSiswa;
+  window.bukaModalPairingNfcSiswa = bukaModalPairingNfcSiswa;
+  window.tutupModalPairingNfcSiswa = tutupModalPairingNfcSiswa;
+  window.lakukanSimulasiTapSiswa = lakukanSimulasiTapSiswa;
+  window.getOrCreateDeviceHWID = getOrCreateDeviceHWID;
+  window.mulaiSesiTapNfcHp = mulaiSesiTapNfcHp;
+  window.batalSesiTapNfcHp = batalSesiTapNfcHp;
+  window.bukaPilihanNfcSiswa = bukaPilihanNfcSiswa;
+  window.tutupPilihanNfcSiswa = tutupPilihanNfcSiswa;
+  window.populateDropdownSiswa = populateDropdownSiswa;
+  window.handleSubmitPerijinan = handleSubmitPerijinan;
+  window.ambilIzinPendingAktifSiswa = ambilIzinPendingAktifSiswa;
+  window.ambilIzinDisetujuiAktifSiswa = ambilIzinDisetujuiAktifSiswa;
+  window.ambilIzinDitolakAktifSiswa = ambilIzinDitolakAktifSiswa;
+  window.bukaKunciFormPengajuanSiswa = bukaKunciFormPengajuanSiswa;
+  window.sinkronkanStatusIzinTargetSiswa = sinkronkanStatusIzinTargetSiswa;
+  window.inisialisasiSinkronisasiPerizinanSiswa = inisialisasiSinkronisasiPerizinanSiswa;
+  window.switchSubtabKehadiran = switchSubtabKehadiran;
+  window.renderKehadiranGuru = renderKehadiranGuru;
+  window.getStatusPresensiGuru = getStatusPresensiGuru;
+  window.initRealtimePresensiGuru = initRealtimePresensiGuru;
+  if (typeof global !== 'undefined') {
+    global.getOrCreateDeviceHWID = getOrCreateDeviceHWID;
+    global.mulaiSesiTapNfcHp = mulaiSesiTapNfcHp;
+    global.batalSesiTapNfcHp = batalSesiTapNfcHp;
+    global.bukaPilihanNfcSiswa = bukaPilihanNfcSiswa;
+    global.tutupPilihanNfcSiswa = tutupPilihanNfcSiswa;
+    global.populateDropdownSiswa = populateDropdownSiswa;
+    global.handleSubmitPerijinan = handleSubmitPerijinan;
+    global.ambilIzinPendingAktifSiswa = ambilIzinPendingAktifSiswa;
+    global.ambilIzinDisetujuiAktifSiswa = ambilIzinDisetujuiAktifSiswa;
+    global.ambilIzinDitolakAktifSiswa = ambilIzinDitolakAktifSiswa;
+    global.bukaKunciFormPengajuanSiswa = bukaKunciFormPengajuanSiswa;
+    global.sinkronkanStatusIzinTargetSiswa = sinkronkanStatusIzinTargetSiswa;
+    global.inisialisasiSinkronisasiPerizinanSiswa = inisialisasiSinkronisasiPerizinanSiswa;
+    global.switchSubtabKehadiran = switchSubtabKehadiran;
+    global.renderKehadiranGuru = renderKehadiranGuru;
+    global.getStatusPresensiGuru = getStatusPresensiGuru;
+    global.initRealtimePresensiGuru = initRealtimePresensiGuru;
+  }
+
+  window.getDefaultPresensiResmiHelper = getDefaultPresensiResmiHelper;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    populateDropdownSiswa,
+    handleSubmitPerijinan,
+    ambilIzinPendingAktifSiswa,
+    ambilIzinDisetujuiAktifSiswa,
+    ambilIzinDitolakAktifSiswa,
+    bukaKunciFormPengajuanSiswa,
+    sinkronkanStatusIzinTargetSiswa,
+    inisialisasiSinkronisasiPerizinanSiswa,
+    switchSubtabKehadiran,
+    renderKehadiranGuru,
+    getStatusPresensiGuru,
+    initRealtimePresensiGuru,
+    muatJadwalBeranda,
+    pilihKelasJadwal,
+    pilihHariJadwal,
+    sinkronkanChipJadwal,
+    initClassChipsSelector,
+    renderTampilanJadwal,
+    bukaDetailInfoToeic,
+    bukaDetailInfoTka,
+    renderPantauKelas,
+    renderPantauBeranda,
+    renderSmartCardPhoto,
+    renderSmartCardInitial,
+    semuaSiswaCache,
+    generateDefaultPresensiResmi: getDefaultPresensiResmiHelper,
+    inisialisasiPantauAwal,
+    inisialisasiJadwalAwal,
+    dengarkanPresensiKelas,
+    initPantauKelas,
+    initDashboard,
+    cekStatusKartuNfcSiswa,
+    bukaModalPairingNfcSiswa,
+    tutupModalPairingNfcSiswa,
+    lakukanSimulasiTapSiswa,
+    getOrCreateDeviceHWID,
+    mulaiSesiTapNfcHp,
+    batalSesiTapNfcHp,
+    bukaPilihanNfcSiswa,
+    tutupPilihanNfcSiswa,
+    initRekapPresensiSiswa,
+    muatDataRekapNisn,
+    muatRiwayatKehadiranSiswa,
+    renderRekapSiswaUI,
+    renderRiwayatKehadiran,
+    filterRekapSiswa,
+    getTanggalHariIniRekap,
+    formatTanggalIndoRekap
+  };
+}
+
+
+function bukaDetailInfoToeic() {
+  alert(
+    "PROGRAM SERTIFIKASI BAHASA INGGRIS TOEIC INTERNASIONAL 2026\n" +
+    "SMK Negeri 1 Sumedang — CBT Center RPL\n\n" +
+    "• Pelaksanaan: Batch Sertifikasi Bahasa Inggris TOEIC Internasional Siswa SMK\n" +
+    "• Status: Batch Berjalan • Sesi Ujian Terjadwal di CBT Center\n" +
+    "• Lokasi: CBT Center & Lab Komputer SMKN 1 Sumedang\n" +
+    "• Ketentuan: Harap hadir tepat waktu dan membawa kartu identitas siswa RFID untuk presensi."
+  );
+}
+
+function bukaDetailInfoTka() {
+  alert(
+    "ASESMEN TES KEMAMPUAN AKADEMIK (TKA) 2026\n" +
+    "SMK Negeri 1 Sumedang — Laboratorium Komputer RPL\n\n" +
+    "• Asesmen: Tes Kemampuan Akademik (TKA) 2026\n" +
+    "• Status: SEDANG BERLANGSUNG SAAT INI\n" +
+    "• Lokasi: Laboratorium Komputer RPL\n" +
+    "• Ketentuan: Seluruh peserta sesi aktif wajib hadir tepat waktu dan melakukan tap kartu RFID presensi."
+  );
+}
+
+
+// Listener otomatis buka kunci form saat izin ditolak atau disetujui
+try {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('perizinan_updated', function(e) {
+      if (typeof bukaKunciFormPengajuanSiswa === 'function') {
+        bukaKunciFormPengajuanSiswa(e && e.detail);
+      }
+      if (typeof populateDropdownSiswa === 'function') {
+        setTimeout(populateDropdownSiswa, 100);
+      }
+      if (typeof renderDaftarPerijinanSaya === 'function') {
+        const u = (typeof currentUser !== 'undefined' && currentUser) || (typeof getSessionUser === 'function' ? getSessionUser() : null);
+        if (u) renderDaftarPerijinanSaya('daftarPerijinanSaya', u);
+      }
+    });
+
+    window.addEventListener('storage', function(e) {
+      if (e && (e.key === 'perizinan_sync_ping' || e.key === 'local_perizinan_updated' || (e.key && e.key.startsWith('status_izin_')))) {
+        if (typeof bukaKunciFormPengajuanSiswa === 'function') {
+          bukaKunciFormPengajuanSiswa();
+        }
+        if (typeof populateDropdownSiswa === 'function') {
+          setTimeout(populateDropdownSiswa, 100);
+        }
+        if (typeof renderDaftarPerijinanSaya === 'function') {
+          const u = (typeof currentUser !== 'undefined' && currentUser) || (typeof getSessionUser === 'function' ? getSessionUser() : null);
+          if (u) renderDaftarPerijinanSaya('daftarPerijinanSaya', u);
+        }
+      }
+    });
+
+    if (typeof BroadcastChannel !== 'undefined') {
+      const bcDash = new BroadcastChannel('ujikom_perizinan_bus');
+      if (typeof bcDash.unref === 'function') bcDash.unref();
+      bcDash.onmessage = function (event) {
+        if (!event || !event.data) return;
+        const d = event.data;
+        if (d.type === 'PERMIT_APPROVED' || d.type === 'PERMIT_REJECTED' || d.type === 'PERMIT_CANCELLED') {
+          const tNisn = d.nisn || (d.payload && d.payload.nisn) || '';
+          const st = (d.type === 'PERMIT_APPROVED' || d.status === 'disetujui' || d.statusBaru === 'disetujui') ? 'disetujui' : ((d.type === 'PERMIT_REJECTED' || d.status === 'ditolak' || d.statusBaru === 'ditolak') ? 'ditolak' : 'dibatalkan');
+          if (typeof localStorage !== 'undefined' && tNisn) {
+            try {
+              localStorage.setItem('status_izin_' + tNisn, st);
+              const lastSubStr = localStorage.getItem('last_submission_' + tNisn);
+              if (lastSubStr) {
+                const p = JSON.parse(lastSubStr);
+                p.status = st;
+                if (d.catatan || d.catatan_guru) p.catatan_guru = d.catatan || d.catatan_guru;
+                if (d.diverifikasi_oleh) p.diverifikasi_oleh = d.diverifikasi_oleh;
+                localStorage.setItem('last_submission_' + tNisn, JSON.stringify(p));
+              }
+              ['local_perizinan', 'local_perijinan', 'daftar_perizinan_lokal'].forEach(k => {
+                const raw = localStorage.getItem(k);
+                if (!raw) return;
+                try {
+                  let arr = JSON.parse(raw);
+                  if (Array.isArray(arr)) {
+                    arr = arr.map(it => {
+                      if (!it) return it;
+                      const itmNisn = String(it.nisn || it.siswaId || it.pengajuId || '').trim();
+                      if (itmNisn === tNisn || (tNisn === '0098263610' && it.nama && String(it.nama).toLowerCase().includes('ihsan'))) {
+                        return { ...it, status: st, catatan_guru: d.catatan || d.catatan_guru || it.catatan_guru };
+                      }
+                      return it;
+                    });
+                    localStorage.setItem(k, JSON.stringify(arr));
+                  }
+                } catch (eArr) {}
+              });
+            } catch (eLsSync) {}
+          }
+          if (typeof sessionStorage !== 'undefined' && tNisn) {
+            try { sessionStorage.removeItem('pending_submission_' + tNisn); } catch (eSs) {}
+          }
+          if (typeof bukaKunciFormPengajuanSiswa === 'function') {
+            bukaKunciFormPengajuanSiswa(d);
+          }
+          if (typeof populateDropdownSiswa === 'function') {
+            populateDropdownSiswa();
+          }
+          if (typeof renderDaftarPerijinanSaya === 'function') {
+            const u = (typeof currentUser !== 'undefined' && currentUser) || (typeof getSessionUser === 'function' ? getSessionUser() : null);
+            if (u) renderDaftarPerijinanSaya('daftarPerijinanSaya', u);
+          }
+        } else if (d.type === 'RESET_DATA') {
+          if (typeof populateDropdownSiswa === 'function') {
+            populateDropdownSiswa();
+          }
+          const msg = document.getElementById('perijinanMsg');
+          if (msg) { msg.style.display = 'none'; msg.innerHTML = ''; }
+          const btn = document.getElementById('btnSubmitPerijinan');
+          if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer'; btn.textContent = 'Kirim Pengajuan Izin'; }
+          const elList = document.getElementById('daftarPerijinanSaya');
+          if (elList) {
+            elList.innerHTML = '<p style="color:#94a3b8;font-size:14px;text-align:center;padding:24px;">Belum ada pengajuan perijinan.</p>';
+          }
+        }
+      };
+    }
+  }
+} catch (e) {}

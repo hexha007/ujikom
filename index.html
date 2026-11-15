@@ -1,0 +1,4279 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Presensi Siswa — SMK Negeri 1 Sumedang</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css?v=20261001_10">
+<style>
+  :root {
+    --bg-page: #080e1a;
+    --bg-surface: #0f172a;
+    --bg-card: rgba(15, 23, 42, 0.86);
+    --border-glass: rgba(255, 255, 255, 0.08);
+    --border-highlight: rgba(56, 189, 248, 0.28);
+    --border-emerald: rgba(16, 185, 129, 0.35);
+    --text-primary: #f8fafc;
+    --text-muted: #94a3b8;
+    --text-dim: #64748b;
+    --brand-blue: #38bdf8;
+    --brand-sky: #0284c7;
+    --brand-indigo: #6366f1;
+    --brand-emerald: #10b981;
+    --sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --heading: 'Space Grotesk', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    min-height: 100vh;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: var(--bg-page);
+    color: var(--text-primary);
+    font-family: var(--sans);
+    overflow-x: hidden;
+    position: relative;
+    display: block !important;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Canvas Latar Belakang Ambient Partikel (Dinonaktifkan Murni) */
+  .bg-mesh-canvas,
+  #ambientCanvas {
+    display: none !important;
+  }
+
+  /* Split Screen Viewport Container (2 Slide / 2 Kolom Modern - True 50/50 Split) */
+  .school-portal-split-container {
+    min-height: 100vh;
+    height: 100vh;
+    width: 100vw;
+    max-width: 100%;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    position: relative;
+    z-index: 2;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: hidden;
+    /* grid-template-columns: 1fr 1.15fr */
+  }
+
+  /* Compatibility alias for existing centered container */
+  .school-portal-centered-container {
+    box-sizing: border-box;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+  }
+
+  .portal-left-slide {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+  }
+
+  .portal-left-content {
+    width: 100%;
+    max-width: 580px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 1.5rem;
+  }
+
+  .portal-right-slide {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100vh;
+    max-height: 100vh;
+    overflow-y: auto;
+    padding: 2.5rem 2.5rem;
+    position: relative;
+    background: #080e1a;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-sizing: border-box;
+  }
+
+  /* Screen-reader & telemetry hidden metadata container */
+  .sr-only,
+  .portal-system-metadata {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     HEADER BRANDING SEKOLAH & LIVE CLOCK
+     ══════════════════════════════════════════════════════════ */
+  .school-portal-header {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.75rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .school-brand-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+  }
+
+  .school-header-logo {
+    width: 46px;
+    height: 46px;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 12px rgba(56, 189, 248, 0.35));
+  }
+
+  .school-brand-text h1 {
+    font-family: var(--heading);
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #ffffff;
+    line-height: 1.2;
+  }
+
+  .school-brand-text p {
+    font-size: 0.76rem;
+    color: var(--brand-blue);
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
+  /* Header Live Clock Pill */
+  .header-clock-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    padding: 5px 14px;
+    border-radius: 999px;
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    color: #e2e8f0;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  }
+
+  .clock-icon-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 10px #10b981;
+    animation: pulseDot 2s infinite ease-in-out;
+  }
+
+  .live-clock-text {
+    font-weight: 700;
+    color: #38bdf8;
+    letter-spacing: 0.04em;
+  }
+
+  .clock-session-tag {
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    border-left: 1px solid rgba(255, 255, 255, 0.15);
+    padding-left: 8px;
+    font-family: var(--sans);
+    font-weight: 600;
+  }
+
+  @keyframes pulseDot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.85); }
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     KOMPONEN MASKOT ROBOT INTERAKTIF: ROBO-NESAS
+     ══════════════════════════════════════════════════════════ */
+  .mascot-stage {
+    position: relative;
+    z-index: 10;
+    margin-bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+    user-select: none;
+    padding: 0.4rem 0 0.6rem;
+  }
+
+  .robo-mascot-svg {
+    width: 380px;
+    height: 450px;
+    max-width: 90vw;
+    filter: drop-shadow(0 24px 48px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 36px rgba(56, 189, 248, 0.22));
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .signal-wave {
+    transform-origin: 120px 20px;
+    animation: signalPulse 2.4s infinite ease-out;
+  }
+  .signal-wave.wave-2 {
+    animation-delay: 0.8s;
+  }
+
+  @keyframes signalPulse {
+    0% { opacity: 0.6; transform: scale(0.9); }
+    60% { opacity: 0.2; transform: scale(1.15); }
+    100% { opacity: 0; transform: scale(1.3); }
+  }
+
+  /* Mascot Status Pill */
+  .mascot-status-pill {
+    position: relative;
+    margin-top: 12px;
+    background: rgba(15, 23, 42, 0.92);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 6px 16px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    pointer-events: auto;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .mascot-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #38bdf8;
+    box-shadow: 0 0 10px #38bdf8;
+    transition: all 0.3s ease;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     KARTU AUTENTIKASI SISWA & GURU (GLASSMORPHISM PREMIUM)
+     ══════════════════════════════════════════════════════════ */
+  .auth-form-card {
+    width: 100%;
+    max-width: 580px;
+    background: var(--bg-card);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(56, 189, 248, 0.22);
+    border-radius: 28px;
+    padding: 3rem 2.8rem 2.4rem;
+    box-shadow: 
+      0 24px 60px rgba(0, 0, 0, 0.7),
+      0 0 45px rgba(56, 189, 248, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    position: relative;
+    z-index: 5;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .auth-form-card:hover {
+    border-color: rgba(56, 189, 248, 0.35);
+    box-shadow: 
+      0 28px 70px rgba(0, 0, 0, 0.75),
+      0 0 50px rgba(56, 189, 248, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  }
+
+  .auth-card-title {
+    font-family: var(--heading);
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 0.45rem;
+    letter-spacing: -0.015em;
+    line-height: 1.25;
+  }
+
+  .auth-card-subtitle {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    margin-bottom: 1.6rem;
+    line-height: 1.5;
+  }
+
+  /* Switch Tab Masuk / Daftar dengan Sliding Glider Modern */
+  .auth-tab-switch {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    background: rgba(3, 7, 18, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 5px;
+    margin-bottom: 1.4rem;
+    overflow: hidden;
+  }
+
+  .auth-tab-glider {
+    position: absolute;
+    top: 5px;
+    bottom: 5px;
+    left: 5px;
+    width: calc(50% - 5px);
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.22) 0%, rgba(2, 132, 199, 0.32) 100%);
+    border: 1px solid rgba(56, 189, 248, 0.45);
+    border-radius: 10px;
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .auth-tab-glider.register-mode {
+    transform: translateX(100%);
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.22) 0%, rgba(5, 150, 105, 0.32) 100%);
+    border-color: rgba(16, 185, 129, 0.45);
+    box-shadow: 0 0 16px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  }
+
+  .auth-tab-btn {
+    position: relative;
+    z-index: 2;
+    font-family: var(--sans);
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .auth-tab-btn:hover {
+    color: #ffffff;
+  }
+
+  .auth-tab-btn.active {
+    color: #ffffff;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+
+  /* Container Panggung Transisi Form Horizontal */
+  .auth-forms-stage {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  /* 1-Click Google Sign-In Glow Button */
+  .btn-google-glow {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 13.5px 20px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(15, 23, 42, 0.7);
+    color: #ffffff;
+    font-family: var(--sans);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  }
+
+  .btn-google-glow:hover {
+    background: rgba(30, 41, 59, 0.85);
+    border-color: rgba(56, 189, 248, 0.45);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(56, 189, 248, 0.2);
+  }
+
+  .btn-google-glow:active {
+    transform: translateY(0px) scale(0.99);
+  }
+
+  /* Separator Garis Tipis */
+  .auth-separator {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 1.4rem 0;
+  }
+
+  .auth-separator::before,
+  .auth-separator::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .auth-separator span {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  /* Formulir Input */
+  .auth-input-group {
+    margin-bottom: 1.15rem;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .auth-input-group label {
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .auth-input-field {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .auth-input-field input {
+    width: 100%;
+    background: rgba(3, 7, 18, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    padding: 13.5px 44px 13.5px 42px;
+    color: #ffffff;
+    font-family: var(--sans);
+    font-size: 0.95rem;
+    outline: none;
+    transition: all 0.2s ease;
+  }
+
+  .auth-input-field input:focus {
+    border-color: var(--brand-blue);
+    background: rgba(3, 7, 18, 0.9);
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+  }
+
+  .auth-input-icon {
+    position: absolute;
+    left: 13px;
+    color: var(--text-dim);
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btn-eye-toggle {
+    position: absolute;
+    right: 13px;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    padding: 5px;
+    transition: color 0.2s, transform 0.2s;
+  }
+
+  .btn-eye-toggle:hover {
+    color: #ffffff;
+    transform: scale(1.1);
+  }
+
+  /* Tombol Submit Utama */
+  .btn-card-submit {
+    width: 100%;
+    margin-top: 0.85rem;
+    padding: 13.5px 20px;
+    border-radius: 14px;
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+    color: #ffffff;
+    font-family: var(--sans);
+    font-size: 0.96rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 6px 20px rgba(2, 132, 199, 0.3);
+  }
+
+  .btn-card-submit:hover {
+    background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%);
+    box-shadow: 0 8px 26px rgba(56, 189, 248, 0.4);
+    transform: translateY(-1px);
+  }
+
+  .btn-card-submit.emerald {
+    border-color: rgba(16, 185, 129, 0.4);
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
+  }
+
+  .btn-card-submit.emerald:hover {
+    background: linear-gradient(135deg, #047857 0%, #059669 100%);
+    box-shadow: 0 8px 26px rgba(16, 185, 129, 0.4);
+  }
+
+  .btn-card-submit:active {
+    transform: translateY(0px) scale(0.99);
+  }
+
+  /* Footer Teks Card */
+  .card-footer-caption {
+    margin-top: 1.45rem;
+    text-align: center;
+    font-size: 0.86rem;
+    color: var(--text-muted);
+  }
+
+  .card-footer-caption a {
+    color: var(--brand-blue);
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .card-footer-caption a:hover {
+    color: #ffffff;
+    text-decoration: underline;
+  }
+
+  /* Toast Alerts */
+  .toast-alert {
+    display: none;
+    margin-top: 0.85rem;
+    padding: 11px 15px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid var(--border-glass);
+  }
+
+  .toast-alert.error {
+    display: block;
+    background: rgba(127, 29, 29, 0.35);
+    border-color: rgba(239, 68, 68, 0.5);
+    color: #fca5a5;
+  }
+
+  .toast-alert.success {
+    display: block;
+    background: rgba(6, 78, 59, 0.35);
+    border-color: rgba(16, 185, 129, 0.5);
+    color: #6ee7b7;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     BOTTOM TELEMETRY & HARDWARE GATEWAY BAR
+     ══════════════════════════════════════════════════════════ */
+  .portal-bottom-bar {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-top: 0.5rem;
+    padding: 0 6px;
+    flex-wrap: wrap;
+  }
+
+  .telemetry-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .telemetry-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 6px #10b981;
+  }
+
+  .telemetry-latency-tag {
+    font-family: var(--mono);
+    color: var(--brand-blue);
+    font-size: 0.68rem;
+  }
+
+  /* Loading Spinner Modal Box */
+  #loadingBox {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 7, 18, 0.82);
+    backdrop-filter: blur(12px);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  #loadingBox.show {
+    display: flex;
+  }
+
+  .spin-wheel {
+    width: 42px;
+    height: 42px;
+    border: 3px solid rgba(255, 255, 255, 0.15);
+    border-top-color: var(--brand-blue);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Modal Lupa Password */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 7, 18, 0.85);
+    backdrop-filter: blur(12px);
+    z-index: 90;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+
+  .modal-box {
+    width: 100%;
+    max-width: 400px;
+    background: #0f172a;
+    border: 1px solid var(--border-highlight);
+    border-radius: 20px;
+    padding: 1.8rem;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.2rem;
+  }
+
+  .modal-header h3 {
+    font-family: var(--heading);
+    font-size: 1.15rem;
+    color: #ffffff;
+  }
+
+  .btn-close-x {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 1.2rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px;
+  }
+
+  .btn-close-x:hover {
+    color: #ffffff;
+  }
+
+  /* Auth Success Overlay Animation */
+  .auth-success-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 7, 18, 0.88);
+    backdrop-filter: blur(16px);
+    z-index: 110;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .auth-success-overlay.active {
+    display: flex;
+    opacity: 1;
+  }
+
+  .auth-success-card {
+    background: #0f172a;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    border-radius: 20px;
+    padding: 2.2rem;
+    text-align: center;
+    max-width: 380px;
+    width: 90%;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 35px rgba(16, 185, 129, 0.2);
+    transform: scale(0.9);
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .auth-success-overlay.active .auth-success-card {
+    transform: scale(1);
+  }
+
+  .auth-success-icon-wrap {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.2rem;
+  }
+
+  .auth-success-icon-svg {
+    width: 30px;
+    height: 30px;
+  }
+
+  .auth-success-title {
+    font-family: var(--heading);
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 0.4rem;
+  }
+
+  .auth-success-desc {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin-bottom: 1.4rem;
+  }
+
+  .auth-success-progress-track {
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+
+  .auth-success-progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #38bdf8, #10b981);
+    border-radius: 99px;
+  }
+
+  @media (min-width: 1200px) {
+    .school-portal-split-container {
+      padding: 0;
+      gap: 0;
+    }
+    .auth-form-card {
+      max-width: 620px;
+      padding: 3.2rem 3rem 2.6rem;
+    }
+    .robo-mascot-svg {
+      width: 420px;
+      height: 498px;
+    }
+  }
+
+  @media (max-width: 1024px) and (min-width: 769px) {
+    .school-portal-split-container {
+      gap: 0;
+      padding: 0;
+    }
+    .auth-form-card {
+      padding: 2.2rem 2rem;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .school-portal-split-container {
+      display: block;
+      gap: 0;
+      padding: 0;
+    }
+    .portal-left-content {
+      max-width: 480px;
+      gap: 1.2rem;
+    }
+    .auth-form-card {
+      max-width: 100%;
+      padding: 2.2rem 1.8rem;
+    }
+    .robo-mascot-svg {
+      width: 240px;
+      height: 285px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .school-portal-split-container {
+      padding: 0 !important;
+      margin: 0 !important;
+      gap: 0;
+    }
+    .school-portal-centered-container {
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    .portal-bottom-bar {
+      justify-content: center;
+      gap: 8px 14px;
+    }
+    .auth-form-card {
+      padding: 1.8rem 1.25rem;
+      border-radius: 22px;
+    }
+    .robo-mascot-svg {
+      width: 210px;
+      height: 250px;
+    }
+    .school-brand-text h1 {
+      font-size: 1.2rem;
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     FLOATING TOP-LEFT BRAND LOGO: ABSTRACT INFINITE CIRCUIT PORTAL
+     ══════════════════════════════════════════════════════════ */
+  .portal-top-brand {
+    display: none !important;
+    position: fixed;
+    top: 1.5rem;
+    left: 2.2rem;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  .portal-brand-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.9rem;
+    background: rgba(15, 23, 42, 0.72);
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid rgba(56, 189, 248, 0.22);
+    box-shadow:
+      0 12px 32px -4px rgba(0, 0, 0, 0.5),
+      0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+      0 0 24px -2px rgba(56, 189, 248, 0.15);
+    padding: 0.55rem 1.15rem 0.55rem 0.85rem;
+    border-radius: 9999px;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    user-select: none;
+  }
+
+  .portal-brand-pill:hover {
+    border-color: rgba(56, 189, 248, 0.45);
+    box-shadow:
+      0 16px 36px -4px rgba(0, 0, 0, 0.6),
+      0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+      0 0 32px 0px rgba(56, 189, 248, 0.25);
+    transform: translateY(-1px);
+  }
+
+  .portal-brand-symbol {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .circuit-infinity-svg {
+    filter: drop-shadow(0 2px 8px rgba(56, 189, 248, 0.4));
+    animation: infinityPulse 3.5s ease-in-out infinite;
+  }
+
+  @keyframes infinityPulse {
+    0%, 100% {
+      filter: drop-shadow(0 2px 8px rgba(56, 189, 248, 0.4));
+      transform: scale(1);
+    }
+    50% {
+      filter: drop-shadow(0 3px 14px rgba(16, 185, 129, 0.55));
+      transform: scale(1.02);
+    }
+  }
+
+  .portal-brand-meta {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    line-height: 1.15;
+  }
+
+  .portal-brand-title {
+    font-family: var(--heading);
+    font-size: 0.86rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #ffffff;
+    text-transform: uppercase;
+    margin: 0;
+    white-space: nowrap;
+  }
+
+  .portal-brand-badge-wrap {
+    display: flex;
+    align-items: center;
+    margin-top: 2px;
+  }
+
+  .portal-sub-badge {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    padding: 1px 7px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    display: inline-block;
+  }
+
+  @media (max-width: 768px) {
+    .portal-top-brand {
+      display: none !important;
+    }
+    .portal-brand-pill {
+      padding: 0.45rem 0.95rem 0.45rem 0.75rem;
+    }
+    .portal-brand-title {
+      font-size: 0.8rem;
+    }
+    .portal-sub-badge {
+      font-size: 0.58rem;
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     FULLSCREEN INTRO LOADING (CLEAN WHITE OVERLAY, 69 FRAMES 1x NO LOOP)
+     ══════════════════════════════════════════════════════════ */
+  .fullscreen-intro-loading {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    background: transparent;
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+  }
+
+  .intro-bg-backdrop {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background: #ffffff;
+    z-index: 1;
+    pointer-events: none;
+    will-change: opacity;
+  }
+
+  .intro-animation-wrapper {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: min(520px, 86vw);
+    max-width: 580px;
+    aspect-ratio: 16 / 9;
+    transform-origin: center center;
+    will-change: transform;
+    pointer-events: none;
+  }
+
+  .intro-canvas {
+    width: 100%;
+    max-width: 100%;
+    aspect-ratio: 16 / 9;
+    background: transparent;
+    display: block;
+    border: none;
+    outline: none;
+    filter: none;
+    transition: none;
+  }
+
+  .intro-canvas.gliding {
+    filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.45));
+  }
+
+  /* MASTER SPLIT-CARD (FULL SCREEN 50/50 SEJATI) */
+  .master-split-card {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100vw;
+    height: 100vh;
+    min-height: 100vh;
+    max-width: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #0f172a;
+    border: none !important;
+    border-radius: 0 !important;
+    outline: none !important;
+    box-shadow: none !important;
+    overflow: hidden;
+    position: relative;
+    opacity: 1;
+    transform: none;
+  }
+
+  /* SISI KIRI: VISUAL MESH CARD (DEEP GRADIENT INDIGO, VIOLET, SLATE) */
+  .portal-left-slide.visual-mesh-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    min-height: 100vh;
+    width: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 50% 32%, rgba(99, 102, 241, 0.35) 0%, transparent 60%),
+      radial-gradient(circle at 18% 75%, rgba(139, 92, 246, 0.25) 0%, transparent 50%),
+      radial-gradient(circle at 85% 20%, rgba(56, 189, 248, 0.2) 0%, transparent 45%),
+      linear-gradient(155deg, #070a13 0%, #110f27 45%, #191238 100%);
+    border: none !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 0 !important;
+    outline: none !important;
+    box-shadow: none !important;
+    box-sizing: border-box;
+  }
+
+  .portal-left-content {
+    width: 100%;
+    max-width: 580px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    position: relative;
+    z-index: 2;
+    padding: 2.5rem 2rem;
+  }
+
+  /* Center Hero Showcase (Full Scale Logo & Heading) */
+  .visual-hero-showcase {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 520px;
+    margin: 0;
+  }
+
+  /* Logo Slot Target in Left Card */
+  .visual-logo-slot {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 0 0 1.75rem 0;
+    position: relative;
+    min-height: clamp(190px, 25vw, 260px);
+  }
+
+  .visual-logo-glow-aura {
+    position: absolute;
+    width: 320px;
+    height: 320px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.18) 0%, rgba(139, 92, 246, 0.08) 45%, transparent 70%);
+    filter: blur(45px);
+    z-index: 1;
+    border-radius: 50%;
+    opacity: 0.40;
+    pointer-events: none;
+    transition: opacity 0.8s ease;
+  }
+
+  .visual-logo-glow-aura.active {
+    opacity: 0.55;
+  }
+
+  .final-logo-canvas {
+    width: 100%;
+    max-width: 460px;
+    aspect-ratio: 16 / 9;
+    border-radius: 0;
+    display: block;
+    object-fit: contain;
+    position: relative;
+    z-index: 3;
+    image-rendering: auto;
+    filter: drop-shadow(0 16px 36px rgba(0, 0, 0, 0.65)) drop-shadow(0 4px 12px rgba(0, 0, 0, 0.40));
+    opacity: 0;
+    transition: opacity 0.12s ease;
+  }
+
+  .final-logo-img {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    max-width: 460px;
+    aspect-ratio: 16 / 9;
+    object-fit: contain;
+    display: block;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0;
+    filter: drop-shadow(0 16px 36px rgba(0, 0, 0, 0.65)) drop-shadow(0 4px 12px rgba(0, 0, 0, 0.40));
+    image-rendering: auto;
+    transition: opacity 0.12s ease, filter 0.12s ease;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     EFEK KILATAN CAHAYA BERKALA (LOOP FRAME 60-69 JEDA 3-4 DETIK)
+     Animasi kilatan cahaya asli dari frame 60 s/d 69 diputar mulus
+     secara transparan pada #finalLogoCanvas dan #finalLogoImg
+     dengan jeda istirahat 3-4 detik antar loop tanpa glitch/white box.
+     ══════════════════════════════════════════════════════════ */
+
+  /* Visual Bottom Content */
+  .visual-bottom-content {
+    text-align: center;
+  }
+
+  .visual-welcome-heading {
+    font-family: var(--heading);
+    font-size: clamp(2.5rem, 4.2vw, 3.6rem);
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 1.15;
+    letter-spacing: -0.035em;
+    margin: 0;
+    text-align: center;
+    text-shadow: 0 6px 30px rgba(0, 0, 0, 0.55);
+  }
+
+  @media (max-width: 1024px) and (min-width: 769px) {
+    .master-split-card {
+      grid-template-columns: 1fr 1.15fr;
+      height: 100vh;
+    }
+    .portal-left-content {
+      padding: 2.5rem 1.8rem;
+    }
+    .auth-form-card {
+      padding: 2.5rem 2.2rem;
+    }
+    .visual-welcome-heading {
+      font-size: 1.95rem;
+    }
+  }
+
+  @media (max-width: 768px) {
+    html, body {
+      overflow-y: auto;
+      height: auto;
+      min-height: 100vh;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    .school-portal-split-container {
+      height: auto;
+      min-height: 100vh;
+      overflow-y: auto;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+      border-radius: 0 !important;
+    }
+    .master-split-card {
+      grid-template-columns: 1fr;
+      height: auto;
+      min-height: 100vh;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+      border-radius: 0 !important;
+    }
+    .portal-left-slide.visual-mesh-card {
+      height: auto;
+      min-height: auto;
+      padding: 2.2rem 1.6rem !important;
+      border: none !important;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+      border-radius: 0 !important;
+      margin: 0 !important;
+    }
+    .portal-right-slide {
+      height: auto;
+      min-height: auto;
+      padding: 2.5rem 1.5rem;
+      margin: 0 !important;
+      border: none !important;
+      border-radius: 0 !important;
+    }
+    .auth-form-card {
+      padding: 1.5rem 0.5rem;
+      max-width: 100%;
+    }
+    .visual-welcome-heading {
+      font-size: 1.75rem;
+    }
+  }
+
+</style>
+</head>
+<body>
+  <!-- ══════════════════════════════════════════════════════════
+       INTRO LOADING PUTIH BERSIH (ANIMASI 69 FRAME, PLAY 1x NO LOOP)
+       ══════════════════════════════════════════════════════════ -->
+  <div id="fullscreenIntroLoading" class="fullscreen-intro-loading" aria-label="Layar Memuat Presensia">
+    <div class="intro-bg-backdrop" id="introBgBackdrop"></div>
+    <div class="intro-animation-wrapper" id="introAnimationWrapper">
+      <img id="introPosterImg" src="assets/animasi/ezgif-frame-001.jpg" alt="Logo Presensia" class="intro-canvas" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none;" />
+      <canvas id="introCanvas" width="1280" height="720" class="intro-canvas" aria-label="Animasi Logo Presensia"></canvas>
+    </div>
+  </div>
+
+
+  
+
+  <!-- TOP-LEFT PRESENSI BRAND HIDDEN FROM VIEWPORT -->
+
+  <!-- LOADING OVERLAY -->
+  <div id="loadingBox">
+    <div class="spin-wheel"></div>
+    <span id="loadingCaption" style="font-size: 0.85rem; color: #f8fafc; font-family: var(--sans);">Memproses...</span>
+  </div>
+
+  <!-- MAIN SPLIT SCREEN VIEWPORT CONTAINER (2 SLIDE / 2 KOLOM) -->
+  <main class="school-portal-split-container school-portal-centered-container">
+
+    <!-- MASTER 2-COLUMN SPLIT-CARD -->
+    <div class="master-split-card" id="masterSplitCard">
+
+      <!-- ══════════════════════════════════════════════════════════
+           SLIDE / KOLOM KIRI: VISUAL MESH CARD (DEEP GRADIENT INDIGO, VIOLET, SLATE)
+           ══════════════════════════════════════════════════════════ -->
+      <div class="portal-left-slide visual-mesh-card">
+        <div class="portal-left-content">
+          <!-- Center Hero Showcase: Large Logo & Impactful Welcome Back -->
+          <div class="visual-hero-showcase">
+            <div class="visual-logo-slot left-panel-stagger" id="logoSlotTarget">
+              <div class="visual-logo-glow-aura" id="visualLogoGlow"></div>
+              <canvas id="finalLogoCanvas" width="1280" height="720" class="final-logo-canvas" aria-label="Logo Resmi Presensia"></canvas>
+              <img id="finalLogoImg" src="assets/animasi/ezgif-frame-069.png" alt="Logo Resmi Presensia" class="final-logo-img" />
+            </div>
+
+            <div class="visual-bottom-content left-panel-stagger left-card-stagger">
+              <h2 class="visual-welcome-heading">Welcome Back!</h2>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════════
+     SLIDE / KOLOM KANAN: KARTU FORMULIR AUTENTIKASI SISWA & GURU
+     ══════════════════════════════════════════════════════════ -->
+<div class="portal-right-slide">
+  <section class="auth-form-card right-card-stagger" id="cardAuthWrapper" aria-label="Formulir Masuk Portal Presensi">
+      
+      <h2 class="auth-card-title" id="authPortalHeading">Halo, Selamat Datang!</h2>
+      <p class="auth-card-subtitle" id="authPortalSubtitle">Silakan masuk menggunakan email sekolah atau akun Google Anda untuk melanjutkan presensi.</p>
+
+      <!-- Switch Tab Masuk / Daftar -->
+      <div class="auth-tab-switch" id="authTabSwitch">
+        <div class="auth-tab-glider" id="authTabGlider" aria-hidden="true"></div>
+        <button type="button" class="auth-tab-btn active" id="tabBtnLogin" onclick="switchAuthTab('login')">Masuk</button>
+        <button type="button" class="auth-tab-btn" id="tabBtnRegister" onclick="switchAuthTab('register')">Daftar</button>
+      </div>
+
+      <!-- 1-Click Google Sign-In (Firebase Auth) -->
+      <button type="button" class="btn-google-glow" id="btnGoogleLogin" onclick="handleGoogleLogin()">
+        <svg width="18" height="18" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.15z"/>
+          <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+          <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+          <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+        </svg>
+        <span>Masuk dengan Google</span>
+      </button>
+
+      <button type="button" class="btn-google-glow" id="btnGoogleRegister" onclick="handleGoogleLogin()" style="display:none;">
+        <svg width="18" height="18" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.15z"/>
+          <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+          <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+          <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+        </svg>
+        <span>Daftar dengan Google</span>
+      </button>
+
+      <div class="auth-separator">
+        <span>ATAU DENGAN EMAIL</span>
+      </div>
+
+      <!-- ──────────────────────────────────────────────
+           CONTAINER TRANSISI FORMULIR (HORIZONTAL SLIDE)
+           ────────────────────────────────────────────── -->
+      <div class="auth-forms-stage" id="authFormsStage">
+        <!-- FORM 1: LOGIN SISWA & GURU -->
+        <form id="formLogin" onsubmit="handleLoginEmail(event)">
+          
+          <div class="auth-input-group">
+            <label for="loginEmail">Email Gmail</label>
+            <div class="auth-input-field">
+              <span class="auth-input-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                  <polyline points="22,6 12,13 2,6"></polyline>
+                </svg>
+              </span>
+              <input type="email" id="loginEmail" placeholder="nama@gmail.com" required autocomplete="email">
+            </div>
+          </div>
+
+          <div class="auth-input-group">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <label for="loginPassword">Kata Sandi</label>
+              <a href="javascript:void(0)" onclick="bukaModalLupaPassword()" style="font-size:12px;color:var(--brand-blue);text-decoration:none;">Lupa sandi?</a>
+            </div>
+            <div class="auth-input-field">
+              <span class="auth-input-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+              </span>
+              <input type="password" id="loginPassword" placeholder="Masukkan kata sandi" required autocomplete="current-password">
+              <button type="button" class="btn-eye-toggle" onclick="togglePassword('loginPassword', this)" aria-label="Lihat kata sandi">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-card-submit" id="btnActionLogin">Masuk Sekarang</button>
+          <div id="notifBoxLogin" class="toast-alert"></div>
+        </form>
+
+        <!-- FORM 2: REGISTRASI AKUN BARU -->
+        <form id="formRegister" onsubmit="handleRegisterEmail(event)" style="display:none;">
+          
+          <div class="auth-input-group">
+            <label for="regNama">Nama Lengkap</label>
+            <div class="auth-input-field">
+              <span class="auth-input-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+              </span>
+              <input type="text" id="regNama" placeholder="Nama lengkap siswa" required autocomplete="name">
+            </div>
+          </div>
+
+          <div class="auth-input-group">
+            <label for="regEmail">Email Gmail</label>
+            <div class="auth-input-field">
+              <span class="auth-input-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                  <polyline points="22,6 12,13 2,6"></polyline>
+                </svg>
+              </span>
+              <input type="email" id="regEmail" placeholder="nama@gmail.com" required autocomplete="email">
+            </div>
+          </div>
+
+          <div class="auth-input-group">
+            <label for="regPassword">Kata Sandi (Min. 6 Karakter)</label>
+            <div class="auth-input-field">
+              <span class="auth-input-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+              </span>
+              <input type="password" id="regPassword" placeholder="Minimal 6 karakter" minlength="6" required autocomplete="new-password">
+              <button type="button" class="btn-eye-toggle" onclick="togglePassword('regPassword', this)" aria-label="Lihat kata sandi">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-card-submit emerald" id="btnActionRegister">Daftar Akun</button>
+          <div id="notifBoxRegister" class="toast-alert"></div>
+        </form>
+      </div>
+
+      <div class="card-footer-caption" id="authFooterSwitch">
+        Belum punya akun? <a href="javascript:void(0)" onclick="switchAuthTab('register')">Daftar akun di sini</a>
+      </div>
+
+    </section>
+  </div>
+
+    </div> <!-- end master-split-card -->
+  </main>
+
+  <!-- Preserved Hidden Telemetry & Mascot Stage for 100% Test & Auth Invariants -->
+      <div class="portal-system-metadata sr-only" aria-hidden="true">
+        <span class="meta-school-pill">SMK NEGERI 1 SUMEDANG • REKAYASA PERANGKAT LUNAK</span>
+        <span class="meta-rfid-pill">Gateway RFID Siaga</span>
+        <span class="meta-class-pill">Kelas XII RPL 2</span>
+        <span class="meta-passback-pill">Anti-Passback Aktif</span>
+<div class="mascot-stage" id="mascotStage">
+          
+          <svg id="roboNesasMascot" class="robo-mascot-svg" viewBox="0 0 240 285" width="380" height="450" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <!-- Metallic body gradient -->
+              <linearGradient id="roboBodyGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#1e293b"/>
+                <stop offset="50%" stop-color="#0f172a"/>
+                <stop offset="100%" stop-color="#090f1d"/>
+              </linearGradient>
+
+              <!-- Torso titanium chassis gradient -->
+              <linearGradient id="roboTorsoGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#1e293b"/>
+                <stop offset="55%" stop-color="#0f172a"/>
+                <stop offset="100%" stop-color="#070c17"/>
+              </linearGradient>
+              
+              <!-- Visor screen gradient -->
+              <linearGradient id="roboVisorGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#030712"/>
+                <stop offset="100%" stop-color="#0b1329"/>
+              </linearGradient>
+
+              <!-- Arm / hand gradient -->
+              <linearGradient id="roboArmGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#334155"/>
+                <stop offset="100%" stop-color="#0f172a"/>
+              </linearGradient>
+
+              <!-- Neon Cyan Glow Filter -->
+              <filter id="neonCyanGlow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="3.5" result="coloredBlur"/>
+                <feMerge>
+                  <feMergeNode in="coloredBlur"/>
+                  <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+              </filter>
+
+              <!-- Beacon Glow Filter -->
+              <filter id="beaconGlow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="4.5" result="coloredBlur"/>
+                <feMerge>
+                  <feMergeNode in="coloredBlur"/>
+                  <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+              </filter>
+            </defs>
+
+            <!-- Mascot Root Floating Group -->
+            <g id="mascotRoot">
+              
+              <!-- 1. Ground Hover Shadow & Field -->
+              <g id="hoverShadowGroup">
+                <ellipse cx="120" cy="274" rx="55" ry="5" fill="rgba(56, 189, 248, 0.22)" filter="url(#neonCyanGlow)"/>
+                <ellipse cx="120" cy="274" rx="28" ry="3" fill="#38bdf8" opacity="0.35"/>
+              </g>
+
+              <!-- 2. Robotic Base: Hover Pod Chassis & Mechanical Leg Struts -->
+              <g id="hoverPodBase">
+                <!-- Dual Robotic Leg Struts / Pylons -->
+                <g id="robotLegs">
+                  <!-- Left Leg Strut -->
+                  <g id="legLeft">
+                    <path d="M 88 226 L 68 252" stroke="#334155" stroke-width="6" stroke-linecap="round"/>
+                    <path d="M 88 226 L 68 252" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                    <rect x="58" y="248" width="20" height="7" rx="3.5" fill="#1e293b" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1.2"/>
+                    <circle cx="68" cy="251.5" r="2" fill="#38bdf8"/>
+                  </g>
+                  <!-- Right Leg Strut -->
+                  <g id="legRight">
+                    <path d="M 152 226 L 172 252" stroke="#334155" stroke-width="6" stroke-linecap="round"/>
+                    <path d="M 152 226 L 172 252" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                    <rect x="162" y="248" width="20" height="7" rx="3.5" fill="#1e293b" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1.2"/>
+                    <circle cx="172" cy="251.5" r="2" fill="#38bdf8"/>
+                  </g>
+                </g>
+
+                <!-- Central Hover Engine Thruster Housing -->
+                <path d="M 82 234 L 158 234 Q 166 234 162 244 L 150 256 Q 146 260 136 260 L 104 260 Q 94 260 90 256 L 78 244 Q 74 234 82 234 Z" fill="url(#roboBodyGrad)" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1.5"/>
+                <!-- Central Repulsor Ring & Ion Glow -->
+                <ellipse cx="120" cy="256" rx="28" ry="6" fill="#090f1d" stroke="#38bdf8" stroke-width="1.5"/>
+                <ellipse cx="120" cy="256" rx="20" ry="3.8" fill="#38bdf8" filter="url(#neonCyanGlow)" opacity="0.9"/>
+                <circle cx="120" cy="256" r="2.5" fill="#ffffff"/>
+              </g>
+
+              <!-- 3. Robotic Waist & Pelvic Articulation -->
+              <g id="roboWaist">
+                <rect x="92" y="216" width="56" height="18" rx="6" fill="#0f172a" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1.5"/>
+                <!-- Waist Power Conduits & Cable Segments -->
+                <line x1="98" y1="221" x2="142" y2="221" stroke="#334155" stroke-width="2.5" stroke-linecap="round"/>
+                <line x1="98" y1="226" x2="142" y2="226" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round" opacity="0.75"/>
+                <circle cx="102" cy="223.5" r="2" fill="#f59e0b"/>
+                <circle cx="138" cy="223.5" r="2" fill="#f59e0b"/>
+              </g>
+
+              <!-- 4. Robotic Upper Body Chassis (Chest, Shoulders & Arms) -->
+              <g id="upperBodyChassis" style="transform-origin: 120px 216px;">
+                <!-- Robotic Torso & Chest Chassis -->
+                <g id="roboTorso">
+                  <!-- Titanium Chest Plate -->
+                  <path d="M 66 158 L 174 158 Q 186 158 184 170 L 168 210 Q 166 216 158 216 L 82 216 Q 74 216 72 210 L 56 170 Q 54 158 66 158 Z" fill="url(#roboTorsoGrad)" stroke="rgba(56, 189, 248, 0.45)" stroke-width="2"/>
+                  
+                  <!-- Obsidian Bevel Inset & Accent Trim Lines -->
+                  <path d="M 74 164 L 166 164 L 154 208 L 86 208 Z" fill="#0b1329" stroke="rgba(56, 189, 248, 0.22)" stroke-width="1.2"/>
+                  <line x1="72" y1="174" x2="98" y2="186" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                  <line x1="168" y1="174" x2="142" y2="186" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                  
+                  <!-- Glowing Reactor Power Core LED -->
+                  <g id="powerCore">
+                    <!-- Reactor Outer Collar & Heat Vents -->
+                    <circle cx="120" cy="188" r="16" fill="#090f1d" stroke="rgba(56, 189, 248, 0.6)" stroke-width="1.5"/>
+                    <line x1="120" y1="172" x2="120" y2="175" stroke="#38bdf8" stroke-width="1.5"/>
+                    <line x1="120" y1="201" x2="120" y2="204" stroke="#38bdf8" stroke-width="1.5"/>
+                    <line x1="104" y1="188" x2="107" y2="188" stroke="#38bdf8" stroke-width="1.5"/>
+                    <line x1="133" y1="188" x2="136" y2="188" stroke="#38bdf8" stroke-width="1.5"/>
+                    <!-- Reactor Pulse Glow -->
+                    <circle id="powerCoreCenter" cx="120" cy="188" r="9.5" fill="#38bdf8" filter="url(#neonCyanGlow)"/>
+                    <circle cx="120" cy="188" r="4.5" fill="#ffffff"/>
+                  </g>
+
+                  <!-- Quantum Micro-Chip Core (Futuristic Hexagonal Microcircuit Pad with Glowing LED & Amber/Cyan Traces) -->
+                  <g id="quantumChipCore" transform="translate(105, 159)">
+                    <!-- Hexagonal Micro-chip Base Carrier -->
+                    <polygon points="15,0 27,3 27,9 15,12 3,9 3,3" fill="#070c17" stroke="rgba(56, 189, 248, 0.55)" stroke-width="1.2"/>
+                    <!-- Microcircuit Traces (Amber & Cyan) -->
+                    <path d="M 6 6 L 11 6 L 13 4 L 17 4 L 19 6 L 24 6" fill="none" stroke="#f59e0b" stroke-width="1" stroke-linecap="round" opacity="0.9"/>
+                    <line x1="8" y1="4" x2="10" y2="4" stroke="#38bdf8" stroke-width="0.8" stroke-linecap="round" opacity="0.8"/>
+                    <line x1="20" y1="8" x2="22" y2="8" stroke="#38bdf8" stroke-width="0.8" stroke-linecap="round" opacity="0.8"/>
+                    <!-- Glowing Central Micro-Core LED -->
+                    <circle cx="15" cy="6" r="2.2" fill="#38bdf8" filter="url(#neonCyanGlow)"/>
+                    <circle cx="15" cy="6" r="1.1" fill="#ffffff"/>
+                    <!-- Golden Contact Pins -->
+                    <circle cx="5" cy="6" r="0.75" fill="#f59e0b"/>
+                    <circle cx="25" cy="6" r="0.75" fill="#f59e0b"/>
+                  </g>
+                </g>
+
+                <!-- 6. Mechanical Shoulder Pads -->
+                <!-- LEFT SHOULDER PAD -->
+                <g id="shoulderLeft">
+                  <path d="M 44 160 Q 58 154 68 160 L 66 176 Q 52 180 42 172 Z" fill="url(#roboBodyGrad)" stroke="rgba(56, 189, 248, 0.45)" stroke-width="1.5"/>
+                  <path d="M 46 163 Q 56 158 64 163" fill="none" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round"/>
+                </g>
+
+                <!-- RIGHT SHOULDER PAD -->
+                <g id="shoulderRight">
+                  <path d="M 196 160 Q 182 154 172 160 L 174 176 Q 188 180 198 172 Z" fill="url(#roboBodyGrad)" stroke="rgba(56, 189, 248, 0.45)" stroke-width="1.5"/>
+                  <path d="M 194 163 Q 184 158 176 163" fill="none" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round"/>
+                </g>
+
+                <!-- 7. Mechanical Arms & Hands -->
+                <!-- LEFT ARM & HAND -->
+                <g id="armLeft" class="robo-arm" style="transform-origin: 48px 170px;">
+                  <circle cx="48" cy="170" r="7.5" fill="#1e293b" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1.5"/>
+                  <path d="M 48 172 Q 36 188 52 200" fill="none" stroke="url(#roboArmGrad)" stroke-width="8" stroke-linecap="round"/>
+                  <g id="handLeft">
+                    <rect x="42" y="194" width="20" height="14" rx="6" fill="#1e293b" stroke="rgba(56, 189, 248, 0.45)" stroke-width="1.5"/>
+                    <g id="fingersLeft" style="transform-origin: 52px 200px;">
+                      <rect x="40" y="189" width="4.5" height="10" rx="2" fill="#334155" stroke="rgba(56, 189, 248, 0.3)" stroke-width="1"/>
+                      <rect x="46" y="186" width="5" height="12" rx="2" fill="#38bdf8" opacity="0.9"/>
+                      <rect x="52.5" y="187" width="5" height="11" rx="2" fill="#334155" stroke="rgba(56, 189, 248, 0.3)" stroke-width="1"/>
+                      <rect x="59" y="190" width="4.5" height="9" rx="2" fill="#334155" stroke="rgba(56, 189, 248, 0.3)" stroke-width="1"/>
+                    </g>
+                  </g>
+                </g>
+
+                <!-- RIGHT ARM & HAND -->
+                <g id="armRight" class="robo-arm" style="transform-origin: 192px 170px;">
+                  <circle cx="192" cy="170" r="7.5" fill="#1e293b" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1.5"/>
+                  <path d="M 192 172 Q 204 188 188 200" fill="none" stroke="url(#roboArmGrad)" stroke-width="8" stroke-linecap="round"/>
+                  <g id="handRight">
+                    <rect x="178" y="194" width="20" height="14" rx="6" fill="#1e293b" stroke="rgba(56, 189, 248, 0.45)" stroke-width="1.5"/>
+                    <g id="fingersRight" style="transform-origin: 188px 200px;">
+                      <rect x="176.5" y="190" width="4.5" height="9" rx="2" fill="#334155" stroke="rgba(56, 189, 248, 0.3)" stroke-width="1"/>
+                      <rect x="182.5" y="187" width="5" height="11" rx="2" fill="#334155" stroke="rgba(56, 189, 248, 0.3)" stroke-width="1"/>
+                      <rect x="189" y="186" width="5" height="12" rx="2" fill="#38bdf8" opacity="0.9"/>
+                      <rect x="195.5" y="189" width="4.5" height="10" rx="2" fill="#334155" stroke="rgba(56, 189, 248, 0.3)" stroke-width="1"/>
+                    </g>
+                  </g>
+                </g>
+              </g>
+
+              <!-- 5. Mechanical Neck / Collar Joint -->
+              <g id="neckJoint" style="transform-origin: 120px 158px;">
+                <rect x="98" y="142" width="44" height="20" rx="5" fill="#0f172a" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1.5"/>
+                <line x1="104" y1="148" x2="136" y2="148" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+                <line x1="104" y1="154" x2="136" y2="154" stroke="#64748b" stroke-width="1.5" stroke-linecap="round"/>
+              </g>
+
+              <!-- 8. Head & Dome Body (with Integrated Antenna, Signal Waves & Ear Sensors) -->
+              <g id="mascotHead">
+                <!-- Antenna & Signal Waves -->
+                <g id="mascotAntenna">
+                  <path class="signal-wave wave-1" d="M 106 14 A 16 16 0 0 1 134 14" fill="none" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+                  <path class="signal-wave wave-2" d="M 98 8 A 25 25 0 0 1 142 8" fill="none" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round" opacity="0.25"/>
+                  <!-- Rod -->
+                  <line x1="120" y1="20" x2="120" y2="38" stroke="#64748b" stroke-width="3" stroke-linecap="round"/>
+                  <circle cx="120" cy="38" r="4.5" fill="#334155"/>
+                  <!-- Glowing Beacon Tip -->
+                  <circle id="antennaLight" cx="120" cy="18" r="5.5" fill="#38bdf8" filter="url(#beaconGlow)"/>
+                  <circle cx="120" cy="18" r="2.5" fill="#ffffff"/>
+                </g>
+
+                <!-- Robot Ears / Audio Sensors -->
+                <rect x="26" y="68" width="14" height="38" rx="6" fill="#1e293b" stroke="rgba(56, 189, 248, 0.35)" stroke-width="1.5"/>
+                <line x1="33" y1="76" x2="33" y2="98" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="2 3"/>
+                
+                <rect x="200" y="68" width="14" height="38" rx="6" fill="#1e293b" stroke="rgba(56, 189, 248, 0.35)" stroke-width="1.5"/>
+                <line x1="207" y1="76" x2="207" y2="98" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="2 3"/>
+
+                <!-- Main Dome -->
+                <rect x="36" y="36" width="168" height="114" rx="42" fill="url(#roboBodyGrad)" stroke="rgba(56, 189, 248, 0.38)" stroke-width="2"/>
+                
+                <!-- Subtle Dome Highlight / Glass sheen arc -->
+                <path d="M 58 44 Q 120 38 182 44" fill="none" stroke="rgba(255, 255, 255, 0.22)" stroke-width="2" stroke-linecap="round"/>
+
+                <!-- Visor Screen -->
+                <rect id="visorScreen" x="52" y="52" width="136" height="74" rx="22" fill="url(#roboVisorGrad)" stroke="rgba(56, 189, 248, 0.28)" stroke-width="1.5"/>
+                
+                <!-- Visor Scanlines -->
+                <line x1="58" y1="68" x2="182" y2="68" stroke="rgba(56, 189, 248, 0.06)" stroke-width="1"/>
+                <line x1="58" y1="84" x2="182" y2="84" stroke="rgba(56, 189, 248, 0.06)" stroke-width="1"/>
+                <line x1="58" y1="100" x2="182" y2="100" stroke="rgba(56, 189, 248, 0.06)" stroke-width="1"/>
+                <line x1="58" y1="114" x2="182" y2="114" stroke="rgba(56, 189, 248, 0.06)" stroke-width="1"/>
+
+                <!-- Eyes Subsystem (Normal, Clean Closed > <, Clean Peek o <, & Happy ^ ^) -->
+                <g id="eyesContainer">
+                  <!-- Normal Eyes & Dynamic Movable Pupils -->
+                  <g id="normalEyesGroup">
+                    <ellipse cx="86" cy="86" rx="17" ry="20" fill="rgba(2, 132, 199, 0.15)" stroke="rgba(56, 189, 248, 0.3)" stroke-width="1.2"/>
+                    <ellipse cx="154" cy="86" rx="17" ry="20" fill="rgba(2, 132, 199, 0.15)" stroke="rgba(56, 189, 248, 0.3)" stroke-width="1.2"/>
+                    <g id="pupilsMovable">
+                      <!-- Left Pupil -->
+                      <g id="pupilLeft">
+                        <ellipse cx="86" cy="86" rx="10.5" ry="12.5" fill="#38bdf8" filter="url(#neonCyanGlow)"/>
+                        <ellipse cx="86" cy="86" rx="7" ry="8.5" fill="#0284c7"/>
+                        <circle cx="83.5" cy="82.5" r="3.2" fill="#ffffff"/>
+                        <circle cx="88.5" cy="88.5" r="1.5" fill="#ffffff" opacity="0.8"/>
+                      </g>
+                      <!-- Right Pupil -->
+                      <g id="pupilRight">
+                        <ellipse cx="154" cy="86" rx="10.5" ry="12.5" fill="#38bdf8" filter="url(#neonCyanGlow)"/>
+                        <ellipse cx="154" cy="86" rx="7" ry="8.5" fill="#0284c7"/>
+                        <circle cx="151.5" cy="82.5" r="3.2" fill="#ffffff"/>
+                        <circle cx="156.5" cy="88.5" r="1.5" fill="#ffffff" opacity="0.8"/>
+                      </g>
+                    </g>
+                  </g>
+
+                  <!-- Closed Eyes State (> < / Clean Sensor Nonaktif) -->
+                  <g id="closedEyesGroup" style="opacity: 0; pointer-events: none;">
+                    <ellipse cx="86" cy="86" rx="17" ry="20" fill="rgba(2, 132, 199, 0.08)" stroke="rgba(56, 189, 248, 0.2)" stroke-width="1.2"/>
+                    <ellipse cx="154" cy="86" rx="17" ry="20" fill="rgba(2, 132, 199, 0.08)" stroke="rgba(56, 189, 248, 0.2)" stroke-width="1.2"/>
+                    <!-- Left Squeezed Closed Eye (>) -->
+                    <path id="closedEyeLeft" d="M 77 78 L 94 86 L 77 94" fill="none" stroke="#38bdf8" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round" filter="url(#neonCyanGlow)"/>
+                    <line x1="73" y1="86" x2="69" y2="86" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+                    <!-- Right Squeezed Closed Eye (<) -->
+                    <path id="closedEyeRight" d="M 163 78 L 146 86 L 163 94" fill="none" stroke="#38bdf8" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round" filter="url(#neonCyanGlow)"/>
+                    <line x1="167" y1="86" x2="171" y2="86" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+                  </g>
+
+                  <!-- One-Eye Peek State (o < on Password Visibility Toggle) -->
+                  <g id="peekEyesGroup" style="opacity: 0; pointer-events: none;">
+                    <ellipse cx="86" cy="86" rx="17" ry="20" fill="rgba(2, 132, 199, 0.15)" stroke="rgba(56, 189, 248, 0.3)" stroke-width="1.2"/>
+                    <g id="peekPupilLeft">
+                      <ellipse cx="86" cy="89" rx="10" ry="12" fill="#38bdf8" filter="url(#neonCyanGlow)"/>
+                      <ellipse cx="86" cy="89" rx="6.5" ry="8" fill="#0284c7"/>
+                      <circle cx="83.5" cy="85.5" r="3" fill="#ffffff"/>
+                      <circle cx="88.5" cy="91" r="1.4" fill="#ffffff" opacity="0.8"/>
+                    </g>
+                    <ellipse cx="154" cy="86" rx="17" ry="20" fill="rgba(2, 132, 199, 0.08)" stroke="rgba(56, 189, 248, 0.2)" stroke-width="1.2"/>
+                    <path id="peekEyeRight" d="M 163 78 L 146 86 L 163 94" fill="none" stroke="#38bdf8" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round" filter="url(#neonCyanGlow)"/>
+                    <line x1="167" y1="86" x2="171" y2="86" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+                  </g>
+
+                  <!-- Happy Arc Eyes (Shown on Success: ^ _ ^) -->
+                  <g id="happyEyesGroup" style="opacity: 0; pointer-events: none;">
+                    <path d="M 74 91 Q 86 72 98 91" fill="none" stroke="#10b981" stroke-width="4.2" stroke-linecap="round" filter="url(#neonCyanGlow)"/>
+                    <path d="M 142 91 Q 154 72 166 91" fill="none" stroke="#10b981" stroke-width="4.2" stroke-linecap="round" filter="url(#neonCyanGlow)"/>
+                    <ellipse cx="72" cy="102" rx="7" ry="4" fill="rgba(16, 185, 129, 0.35)"/>
+                    <ellipse cx="168" cy="102" rx="7" ry="4" fill="rgba(16, 185, 129, 0.35)"/>
+                  </g>
+                </g>
+
+                <!-- Mouth / Audio Waveform LEDs -->
+                <g id="mascotMouth">
+                  <line x1="108" y1="133" x2="114" y2="133" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+                  <line x1="117" y1="133" x2="123" y2="133" stroke="#38bdf8" stroke-width="2.8" stroke-linecap="round"/>
+                  <line x1="126" y1="133" x2="132" y2="133" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+                </g>
+              </g>
+
+            </g>
+          </svg>
+        </div>
+
+        <!-- METADATA & TELEMETRI RESMI (TERSEMBUNYI UNTUK MENJAGA PANGGUNG MURNI ROBOT) -->
+        <div class="portal-system-metadata sr-only" aria-hidden="true">
+        <!-- FLOATING TOP-LEFT BRAND LOGO: ABSTRACT INFINITE CIRCUIT PORTAL -->
+  <header class="portal-top-brand" aria-label="Identitas Portal Resmi SMK Negeri 1 Sumedang">
+    <div class="portal-brand-pill">
+      <!-- Abstract Infinite Circuit SVG Icon -->
+      <div class="portal-brand-symbol" aria-hidden="true">
+        <svg viewBox="0 0 52 32" width="46" height="28" fill="none" xmlns="http://www.w3.org/2000/svg" class="circuit-infinity-svg">
+          <defs>
+            <linearGradient id="infCircuitGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#38bdf8"/>
+              <stop offset="50%" stop-color="#06b6d4"/>
+              <stop offset="100%" stop-color="#10b981"/>
+            </linearGradient>
+            <filter id="circuitGlow" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="2.2" result="blur"/>
+              <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+          <!-- Outer subtle ambient glow path -->
+          <path d="M 26 16 C 20 9, 10 9, 6 16 C 10 23, 20 23, 26 16 C 32 9, 42 9, 46 16 C 42 23, 32 23, 26 16 Z" 
+                stroke="url(#infCircuitGrad)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.32" filter="url(#circuitGlow)"/>
+          <!-- Primary Neon Circuit Infinity Loop Track -->
+          <path class="circuit-track" d="M 26 16 C 20 9, 10 9, 6 16 C 10 23, 20 23, 26 16 C 32 9, 42 9, 46 16 C 42 23, 32 23, 26 16 Z" 
+                stroke="url(#infCircuitGrad)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+          <!-- Digital Micro-Nodes / Pulses -->
+          <circle cx="6" cy="16" r="2.2" fill="#38bdf8" filter="url(#circuitGlow)"/>
+          <circle cx="6" cy="16" r="1.1" fill="#ffffff"/>
+          <circle cx="26" cy="16" r="2.5" fill="#06b6d4" filter="url(#circuitGlow)"/>
+          <circle cx="26" cy="16" r="1.2" fill="#ffffff"/>
+          <circle cx="46" cy="16" r="2.2" fill="#10b981" filter="url(#circuitGlow)"/>
+          <circle cx="46" cy="16" r="1.1" fill="#ffffff"/>
+          <!-- Digital Circuit Bus Nodes -->
+          <line x1="15" y1="11" x2="19" y2="7" stroke="#38bdf8" stroke-width="1.2" stroke-linecap="round" opacity="0.8"/>
+          <circle cx="19" cy="7" r="1.1" fill="#38bdf8"/>
+          <line x1="37" y1="21" x2="33" y2="25" stroke="#10b981" stroke-width="1.2" stroke-linecap="round" opacity="0.8"/>
+          <circle cx="33" cy="25" r="1.1" fill="#10b981"/>
+        </svg>
+      </div>
+
+      <!-- Brand Typography -->
+      <div class="portal-brand-meta">
+        <h1 class="portal-brand-title">SMK Negeri 1 Sumedang</h1>
+        <div class="portal-brand-badge-wrap">
+          <span class="portal-sub-badge">PORTAL PRESENSI DIGITAL</span>
+        </div>
+      </div>
+    </div>
+  </header>
+          <header class="school-portal-header">
+            <div class="school-brand-row">
+              <img src="assets/logo-nesas.png" alt="Logo SMKN 1 Sumedang" class="school-header-logo">
+              <div class="school-brand-text">
+                <h1>SMK Negeri 1 Sumedang</h1>
+                <p>Rekayasa Perangkat Lunak (RPL IoT)</p>
+              </div>
+            </div>
+
+            <div class="header-clock-pill">
+              <span class="clock-icon-dot"></span>
+              <span class="live-clock-text" id="liveClock">06:45:00 WIB</span>
+              <span class="clock-session-tag">06.30 - 08.00 WIB</span>
+            </div>
+          </header>
+
+          <div class="mascot-status-pill" id="mascotStatusPill">
+            <span class="mascot-status-dot"></span>
+            <span id="mascotStatusText">Robo-NESAS • Siap Mengawasi Presensi</span>
+          </div>
+
+          <footer class="portal-bottom-bar">
+            <div class="telemetry-item">
+              <span class="telemetry-dot"></span>
+              <span>ESP32 • RC522: <strong>READY</strong></span>
+            </div>
+            <div class="telemetry-item">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2">
+                <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+              </svg>
+              <span>Firebase Realtime Database Connected</span>
+            </div>
+            <div class="telemetry-item telemetry-latency-tag" id="telemetryLatency">42ms</div>
+          </footer>
+        </div>
+
+      </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       MODAL PEMULIHAN KATA SANDI (FORGOT PASSWORD)
+       ══════════════════════════════════════════════════════════ -->
+  <div id="modalLupaPassword" class="modal-overlay" style="display:none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div>
+          <h3>Pemulihan Kata Sandi</h3>
+          <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">Link pemulihan akan dikirim ke email Gmail Anda.</p>
+        </div>
+        <button type="button" class="btn-close-x" onclick="tutupModalLupaPassword()">✕</button>
+      </div>
+      <form onsubmit="handleKirimResetPassword(event)">
+        <div class="auth-input-group" style="margin-bottom:14px;">
+          <label for="resetEmail">Email Gmail Terdaftar</label>
+          <div class="auth-input-field">
+            <span class="auth-input-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
+              </svg>
+            </span>
+            <input type="email" id="resetEmail" placeholder="nama@gmail.com" required autocomplete="email">
+          </div>
+        </div>
+        <div id="resetNotifBox" class="toast-alert"></div>
+        <button type="submit" class="btn-card-submit" id="btnKirimReset" style="margin-top:12px;">Kirim Link Pemulihan</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       MODAL ANIMASI SUKSES AUTENTIKASI (GSAP PROGRESS)
+       ══════════════════════════════════════════════════════════ -->
+  <div id="authSuccessOverlay" class="auth-success-overlay">
+    <div class="auth-success-card">
+      <div class="auth-success-icon-wrap">
+        <svg class="auth-success-icon-svg" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 6L9 17l-5-5"></path>
+        </svg>
+      </div>
+      <h3 class="auth-success-title" id="authSuccessTitle">Autentikasi Berhasil!</h3>
+      <p class="auth-success-desc" id="authSuccessDesc">Menyiapkan Portal Presensi...</p>
+      <div class="auth-success-progress-track">
+        <div class="auth-success-progress-bar" id="authSuccessProgressBar"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FIREBASE & CORE ENGINE SCRIPTS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script src="assets/firebase-config.js"></script>
+  <script src="assets/auth.js"></script>
+
+  <script>
+    // ===== 1. LIVE SCHOOL CLOCK =====
+    function updateSchoolClock() {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      const s = String(now.getSeconds()).padStart(2, '0');
+      const clockEl = document.getElementById('liveClock');
+      if (clockEl) {
+        clockEl.textContent = `${h}:${m}:${s} WIB`;
+      }
+    }
+    setInterval(updateSchoolClock, 1000);
+    updateSchoolClock();
+
+    // Telemetry Jitter
+    function updateTelemetryPing() {
+      const pingEl = document.getElementById('telemetryLatency');
+      if (!pingEl) return;
+      const ping = Math.floor(Math.random() * 35) + 38;
+      pingEl.textContent = `${ping}ms`;
+    }
+    setInterval(updateTelemetryPing, 4000);
+
+    // ===== 2. AMBIENT BACKGROUND PARTICLES (DINONAKTIFKAN MURNI) =====
+    // Background interaktif partikel dinonaktifkan total sesuai instruksi pengguna.
+
+    // ===== 2. FULLSCREEN INTRO LOGO ANIMATION (69 FRAMES 1x NO LOOP) =====
+    const TOTAL_LOGO_FRAMES = 69;
+    let logoFrameImages = [];
+    let loadedLogoFrames = 0;
+    let currentLogoFrameIndex = 0;
+    let isIntroDone = false;
+    let introLoopRafId = null;
+    let lastFrameTimestamp = 0;
+    let hardFailsafeTimeout = null;
+    const TARGET_FPS = 40; // 40 FPS untuk pemutaran 69 frame cepat, mulus & bebas lag (~1.7 detik)
+    const FRAME_INTERVAL = 1000 / TARGET_FPS;
+
+    const cleanLogoImg = new Image();
+    cleanLogoImg.src = 'assets/animasi/ezgif-frame-069.png';
+
+    // ===== 2.1 PRELOAD LOGO SHINE LOOP FRAMES (FRAME 60-69 TRANSPARENT PNG) =====
+    const SHINE_START_FRAME = 60;
+    const SHINE_END_FRAME = 69;
+    const SHINE_TOTAL_FRAMES = 10;
+    const shineFrameImages = [];
+    for (let f = SHINE_START_FRAME; f <= SHINE_END_FRAME; f++) {
+      const sImg = new Image();
+      const numStr = String(f).padStart(3, '0');
+      sImg.src = `assets/animasi/ezgif-frame-${numStr}.png`;
+      shineFrameImages.push(sImg);
+    }
+
+    let shineLoopTimer = null;
+    let shineLoopRafId = null;
+    let isShineEngineRunning = false;
+
+    function startLogoShineLoopEngine() {
+      if (isShineEngineRunning) return;
+      isShineEngineRunning = true;
+      if (typeof window !== 'undefined') {
+        window.isShineEngineRunning = true;
+      }
+
+      const finalCanvas = document.getElementById('finalLogoCanvas');
+      const finalImgEl = document.getElementById('finalLogoImg');
+      const fCtx = finalCanvas ? finalCanvas.getContext('2d') : null;
+
+      const SHINE_FPS = 11; // ~11 FPS (~90.9ms per frame) untuk putaran 10 frame kilatan cahaya ~0.91s yang tenang & elegan
+      const SHINE_INTERVAL = 1000 / SHINE_FPS;
+      const PAUSE_DURATION = 3200; // Jeda 3.2 detik (rentang 3-4 detik) sebelum putaran kilatan berikutnya
+      const INITIAL_SETTLE_DELAY = 280; // Jeda penyesuaian awal 280ms pasca glide sebelum putaran kilatan pertama
+      let currentShineIndex = 9; // Mulai dari frame 69 (logo bersih)
+      let lastShineTimestamp = 0;
+      let isPlayingSequence = false;
+
+      function renderBlendedShineFrame(currIdx, nextIdx, progress) {
+        const currImg = shineFrameImages[currIdx];
+        const nextImg = shineFrameImages[nextIdx];
+        if (!currImg) return;
+
+        // 1. Sinkronisasi src pada <img> untuk rendering instan & pengujian VM
+        if (finalImgEl && currImg.src && finalImgEl.src !== currImg.src) {
+          finalImgEl.src = currImg.src;
+        }
+
+        // 2. Render ke canvas buffer (High-DPI) dengan mikro buffer blend
+        if (finalCanvas && fCtx) {
+          try {
+            // Fondasi dasar: render base cleanLogoImg solid 100% agar tidak ada glitch transparansi / opacity dip
+            const baseSolid = (cleanLogoImg && cleanLogoImg.complete && cleanLogoImg.naturalWidth)
+              ? cleanLogoImg
+              : (currImg && currImg.complete && currImg.naturalWidth ? currImg : null);
+
+            if (baseSolid) {
+              fCtx.imageSmoothingEnabled = true;
+              fCtx.imageSmoothingQuality = 'high';
+              fCtx.clearRect(0, 0, finalCanvas.width, finalCanvas.height);
+
+              // Sapuan kilatan cahaya penuh end-to-end ("sampai ujung") dengan compositing source-atop murni 60 FPS
+              if (isPlayingSequence && typeof fCtx.createLinearGradient === 'function' && typeof fCtx.save === 'function') {
+                fCtx.globalAlpha = 1.0;
+                fCtx.drawImage(baseSolid, 0, 0, finalCanvas.width, finalCanvas.height);
+
+                const sweepProgress = Math.min(1.0, Math.max(0.0, (currIdx + progress) / SHINE_TOTAL_FRAMES));
+                const scale = (finalCanvas.width || 1280) / 1280;
+                const theta = 32 * Math.PI / 180;
+                const nx = Math.cos(theta); // 0.848
+                const ny = Math.sin(theta); // 0.530
+                const hw = 85 * scale;
+                const startDist = 285 * scale;
+                const endDist = 1135 * scale;
+                const centerDist = startDist + sweepProgress * (endDist - startDist);
+
+                const cx = centerDist * nx;
+                const cy = centerDist * ny;
+                const x1 = cx - nx * hw;
+                const y1 = cy - ny * hw;
+                const x2 = cx + nx * hw;
+                const y2 = cy + ny * hw;
+
+                const grad = fCtx.createLinearGradient(x1, y1, x2, y2);
+                grad.addColorStop(0.00, 'rgba(255, 255, 255, 0)');
+                grad.addColorStop(0.20, 'rgba(255, 255, 255, 0.08)');
+                grad.addColorStop(0.40, 'rgba(255, 255, 255, 0.38)');
+                grad.addColorStop(0.50, 'rgba(255, 255, 255, 0.95)');
+                grad.addColorStop(0.60, 'rgba(255, 255, 255, 0.38)');
+                grad.addColorStop(0.80, 'rgba(255, 255, 255, 0.08)');
+                grad.addColorStop(1.00, 'rgba(255, 255, 255, 0)');
+
+                fCtx.save();
+                fCtx.globalCompositeOperation = 'source-atop';
+                fCtx.fillStyle = grad;
+                fCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+                fCtx.restore();
+              } else {
+                // Mikro crossfade buffer blend antar frame kilatan (smooth continuous gleam)
+                if (nextImg && nextImg.complete && nextImg.naturalWidth && nextImg !== currImg && progress > 0) {
+                  fCtx.globalAlpha = Math.max(0, 1.0 - progress);
+                  fCtx.drawImage(currImg, 0, 0, finalCanvas.width, finalCanvas.height);
+                  fCtx.globalAlpha = Math.min(1.0, progress);
+                  fCtx.drawImage(nextImg, 0, 0, finalCanvas.width, finalCanvas.height);
+                  fCtx.globalAlpha = 1.0;
+                } else {
+                  fCtx.globalAlpha = 1.0;
+                  fCtx.drawImage(baseSolid, 0, 0, finalCanvas.width, finalCanvas.height);
+                }
+              }
+              finalCanvas.style.opacity = '1';
+            }
+          } catch (e) {
+            // Safe canvas fallback
+            if (finalImgEl) {
+              finalImgEl.style.opacity = '1';
+            }
+          }
+        }
+      }
+
+      function renderShineFrame(idx) {
+        const frameImg = shineFrameImages[idx];
+        if (!frameImg) return;
+
+        // 1. Swapping src pada <img> untuk rendering tajam instan tanpa blur & sinkronisasi test
+        if (finalImgEl && frameImg.src) {
+          finalImgEl.src = frameImg.src;
+        }
+
+        // 2. Render ke canvas buffer (High-DPI)
+        renderBlendedShineFrame(idx, idx, 0);
+      }
+
+      // Pastikan frame awal adalah logo bersih (frame 69)
+      renderShineFrame(9);
+
+      function stepShineLoop(timestamp) {
+        if (!isPlayingSequence) return;
+        if (!lastShineTimestamp) lastShineTimestamp = timestamp;
+        let delta = timestamp - lastShineTimestamp;
+
+        // Anti-glitch: jika tab lama berada di background / tercekik throttling
+        if (delta > 500) {
+          lastShineTimestamp = timestamp;
+          delta = 0;
+        }
+
+        if (delta >= SHINE_INTERVAL) {
+          lastShineTimestamp = timestamp - (delta % SHINE_INTERVAL);
+          currentShineIndex++;
+
+          if (currentShineIndex >= SHINE_TOTAL_FRAMES) {
+            // Selesai putaran 60 s/d 69, tahan di frame 69 (logo bersih) selama 3.2 detik
+            currentShineIndex = 9;
+            isPlayingSequence = false;
+            renderShineFrame(9);
+            shineLoopTimer = setTimeout(triggerShineSequence, PAUSE_DURATION);
+            return;
+          }
+
+          renderShineFrame(currentShineIndex);
+        } else {
+          // Sub-frame mikro buffer blend antar frame kilatan di rAF 60 FPS
+          const progress = Math.min(1, Math.max(0, delta / SHINE_INTERVAL));
+          const nextShineIndex = Math.min(currentShineIndex + 1, SHINE_TOTAL_FRAMES - 1);
+          renderBlendedShineFrame(currentShineIndex, nextShineIndex, progress);
+        }
+
+        shineLoopRafId = requestAnimationFrame(stepShineLoop);
+      }
+
+      function triggerShineSequence(force) {
+        if (isPlayingSequence && !force) return;
+        if (shineLoopTimer) {
+          clearTimeout(shineLoopTimer);
+          shineLoopTimer = null;
+        }
+        if (shineLoopRafId) {
+          cancelAnimationFrame(shineLoopRafId);
+          shineLoopRafId = null;
+        }
+        currentShineIndex = 0;
+        isPlayingSequence = true;
+        renderShineFrame(0);
+        lastShineTimestamp = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+        shineLoopRafId = requestAnimationFrame(stepShineLoop);
+      }
+
+      if (typeof window !== 'undefined') {
+        window.triggerLogoShine = () => triggerShineSequence(true);
+        window.renderLogoShineFrame = (idx, p) => {
+          const prev = isPlayingSequence;
+          isPlayingSequence = true;
+          renderBlendedShineFrame(idx, idx, p || 0);
+          isPlayingSequence = prev;
+        };
+      }
+
+      // Mulai loop pertama segera setelah settling intro (280ms) sehingga pengguna langsung melihat kilatan pertama
+      shineLoopTimer = setTimeout(triggerShineSequence, INITIAL_SETTLE_DELAY);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.startLogoShineLoopEngine = startLogoShineLoopEngine;
+    }
+
+    // Hard failsafe timer darurat (2.2 detik)
+    // Jika dalam 2.2 detik intro belum selesai karena kendala decode atau lag, otomatis buka UI langsung
+    hardFailsafeTimeout = setTimeout(() => {
+      if (!isIntroDone) {
+        console.warn('[Intro] Hard failsafe timer (2.2s) aktif: membuka antarmuka untuk mencegah freeze');
+        completeIntroAndRevealDirect();
+      }
+    }, 2200);
+
+    function renderFinalLogo(img) {
+      const finalCanvas = document.getElementById('finalLogoCanvas');
+      const finalImgEl = document.getElementById('finalLogoImg');
+      if (finalImgEl) {
+        finalImgEl.style.display = 'block';
+      }
+      if (!finalCanvas) return;
+      const fCtx = finalCanvas.getContext('2d');
+      if (!fCtx) return;
+
+      const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) ? Math.max(window.devicePixelRatio, 2) : 2;
+      const displayW = (finalCanvas.getBoundingClientRect && finalCanvas.getBoundingClientRect().width) || finalCanvas.clientWidth || 460;
+      const displayH = Math.round(displayW * (9 / 16)) || 260;
+      const targetW = Math.max(1280, Math.round(displayW * dpr));
+      const targetH = Math.max(720, Math.round(displayH * dpr));
+
+      if (finalCanvas.width !== targetW || finalCanvas.height !== targetH) {
+        finalCanvas.width = targetW;
+        finalCanvas.height = targetH;
+      }
+
+      fCtx.imageSmoothingEnabled = true;
+      fCtx.imageSmoothingQuality = 'high';
+
+      const drawLogoOnCanvas = (sourceImg) => {
+        try {
+          fCtx.clearRect(0, 0, finalCanvas.width, finalCanvas.height);
+          fCtx.drawImage(sourceImg, 0, 0, finalCanvas.width, finalCanvas.height);
+          const glow = document.getElementById('visualLogoGlow');
+          if (glow) glow.classList.add('active');
+          if (finalCanvas) finalCanvas.style.opacity = '1';
+        } catch (e) {
+          console.warn('drawLogoOnCanvas warning:', e);
+        }
+      };
+
+      if (cleanLogoImg.complete && cleanLogoImg.naturalWidth) {
+        drawLogoOnCanvas(cleanLogoImg);
+      } else {
+        const fallbackSource = (logoFrameImages && logoFrameImages[TOTAL_LOGO_FRAMES - 1]) || img;
+        if (fallbackSource && (fallbackSource.complete || fallbackSource.naturalWidth)) {
+          drawLogoOnCanvas(fallbackSource);
+        }
+        cleanLogoImg.onload = () => drawLogoOnCanvas(cleanLogoImg);
+        cleanLogoImg.onerror = () => {
+          if (finalCanvas) finalCanvas.style.opacity = '1';
+          if (fallbackSource && (fallbackSource.complete || fallbackSource.naturalWidth)) {
+            drawLogoOnCanvas(fallbackSource);
+          }
+        };
+      }
+    }
+
+    function executeLogoGlide() {
+      if (isIntroDone) return;
+      isIntroDone = true;
+
+      if (hardFailsafeTimeout) {
+        clearTimeout(hardFailsafeTimeout);
+        hardFailsafeTimeout = null;
+      }
+      if (introLoopRafId) {
+        cancelAnimationFrame(introLoopRafId);
+        introLoopRafId = null;
+      }
+
+      const overlay = document.getElementById('fullscreenIntroLoading');
+      const introWrapper = document.getElementById('introAnimationWrapper');
+      const introCanvas = document.getElementById('introCanvas');
+      const finalCanvas = document.getElementById('finalLogoCanvas');
+      const backdrop = document.getElementById('introBgBackdrop');
+      const posterImg = document.getElementById('introPosterImg');
+
+      if (posterImg) posterImg.style.display = 'none';
+
+      if (!overlay || !introWrapper || !introCanvas || !finalCanvas) {
+        completeIntroAndRevealDirect();
+        return;
+      }
+
+      let introFinished = false;
+      const finishIntro = () => {
+        if (introFinished) return;
+        introFinished = true;
+        try {
+          renderFinalLogo(cleanLogoImg);
+        } catch (e) {
+          console.warn('renderFinalLogo warning:', e);
+        }
+        const glow = document.getElementById('visualLogoGlow');
+        if (glow) glow.classList.add('active');
+        if (overlay) {
+          overlay.style.pointerEvents = 'none';
+          overlay.style.display = 'none';
+        }
+        document.querySelectorAll('.left-card-stagger, .right-card-stagger').forEach(el => {
+          el.style.opacity = '1';
+          el.style.transform = 'none';
+        });
+        startLogoShineLoopEngine();
+      };
+
+      // Failsafe timer durasi glide: pastikan overlay 100% lenyap max dalam 1600ms
+      const glideSafetyTimer = setTimeout(() => {
+        finishIntro();
+      }, 1600);
+
+      const safeFinish = () => {
+        clearTimeout(glideSafetyTimer);
+        finishIntro();
+      };
+
+      let animationDispatched = false;
+      try {
+        // Render logo bersih transparan eksterior pada intro canvas sebelum glide
+        const ctx = introCanvas.getContext('2d');
+        if (ctx) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          if (cleanLogoImg.complete && cleanLogoImg.naturalWidth) {
+            ctx.clearRect(0, 0, introCanvas.width, introCanvas.height);
+            ctx.drawImage(cleanLogoImg, 0, 0, introCanvas.width, introCanvas.height);
+          } else {
+            const finalImg = logoFrameImages && logoFrameImages[TOTAL_LOGO_FRAMES - 1];
+            if (finalImg && (finalImg.complete || finalImg.naturalWidth)) {
+              ctx.clearRect(0, 0, introCanvas.width, introCanvas.height);
+              ctx.drawImage(finalImg, 0, 0, introCanvas.width, introCanvas.height);
+            }
+          }
+        }
+        introCanvas.classList.add('gliding');
+
+        // Hitung koordinat presisi transisi dari posisi tengah layar ke slot logo panel kiri
+        const targetElement = document.getElementById('finalLogoImg') || finalCanvas;
+        const targetRect = targetElement.getBoundingClientRect();
+        const currentRect = introCanvas.getBoundingClientRect();
+
+        let deltaX = 0;
+        let deltaY = 0;
+        let targetScale = 1;
+
+        if (targetRect.width > 0 && currentRect.width > 0) {
+          const targetCenterX = targetRect.left + (targetRect.width / 2);
+          const targetCenterY = targetRect.top + (targetRect.height / 2);
+          const currentCenterX = currentRect.left + (currentRect.width / 2);
+          const currentCenterY = currentRect.top + (currentRect.height / 2);
+
+          deltaX = targetCenterX - currentCenterX;
+          deltaY = targetCenterY - currentCenterY;
+          targetScale = targetRect.width / currentRect.width;
+        }
+
+        if (typeof gsap !== 'undefined') {
+          animationDispatched = true;
+          const tl = gsap.timeline({ onComplete: safeFinish });
+          // 1. Logo pulse scale-up sejenak di tengah layar (scale: 1.07, ~220ms) dengan kilatan cahaya transient yang memudar tuntas
+          tl.to(introWrapper, {
+            scale: 1.07,
+            duration: 0.22,
+            ease: 'power2.out'
+          });
+          tl.fromTo(introCanvas,
+            { filter: 'brightness(1.12) drop-shadow(0 0 16px rgba(255, 255, 255, 0.35))' },
+            { filter: 'brightness(1) drop-shadow(0 12px 28px rgba(0, 0, 0, 0.45))', duration: 0.25, ease: 'power2.out', clearProps: 'filter' },
+            0
+          );
+          // 2. Meluncur mulus ke slot target panel kiri (~800ms)
+          tl.to(introWrapper, {
+            x: deltaX,
+            y: deltaY,
+            scale: targetScale,
+            duration: 0.8,
+            ease: 'power3.inOut'
+          }, '+=0.04');
+          // 3. Bersamaan dengan luncuran logo ke kiri, backdrop putih memudar mengungkap split 50/50
+          if (backdrop) {
+            tl.to(backdrop, {
+              opacity: 0,
+              duration: 0.65,
+              ease: 'power2.inOut'
+            }, '-=0.55');
+          } else {
+            tl.to(overlay, {
+              opacity: 0,
+              duration: 0.65,
+              ease: 'power2.inOut'
+            }, '-=0.55');
+          }
+          // 4. Stagger reveal konten panel kiri & formulir panel kanan
+          tl.fromTo('.left-card-stagger',
+            { opacity: 0, y: 16 },
+            { opacity: 1, y: 0, duration: 0.6, stagger: 0.08, ease: 'power2.out', clearProps: 'transform,opacity' },
+            '-=0.45'
+          );
+          tl.fromTo('.right-card-stagger',
+            { opacity: 0, y: 16 },
+            { opacity: 1, y: 0, duration: 0.55, stagger: 0.06, ease: 'power2.out', clearProps: 'transform,opacity' },
+            '-=0.5'
+          );
+        } else if (introWrapper.animate) {
+          animationDispatched = true;
+          // Native Web Animations API fallback
+          const pulse = introWrapper.animate(
+            [{ transform: 'scale(1)' }, { transform: 'scale(1.07)' }],
+            { duration: 220, easing: 'ease-out', fill: 'forwards' }
+          );
+          if (introCanvas.animate) {
+            const flashAnim = introCanvas.animate(
+              [
+                { filter: 'brightness(1.12) drop-shadow(0 0 16px rgba(255, 255, 255, 0.35))' },
+                { filter: 'brightness(1) drop-shadow(0 12px 28px rgba(0, 0, 0, 0.45))' }
+              ],
+              { duration: 250, easing: 'ease-out' }
+            );
+            flashAnim.onfinish = () => {
+              introCanvas.style.filter = '';
+            };
+          }
+          pulse.onfinish = () => {
+            const glide = introWrapper.animate(
+              [
+                { transform: 'translate(0, 0) scale(1.07)' },
+                { transform: `translate(${deltaX}px, ${deltaY}px) scale(${targetScale})` }
+              ],
+              { duration: 800, easing: 'cubic-bezier(0.65, 0, 0.35, 1)', fill: 'forwards' }
+            );
+            if (backdrop && backdrop.animate) {
+              backdrop.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 650, delay: 180, fill: 'forwards' });
+            }
+            glide.onfinish = safeFinish;
+          };
+        } else {
+          safeFinish();
+        }
+      } catch (err) {
+        console.error('Error during executeLogoGlide:', err);
+        safeFinish();
+      } finally {
+        if (!animationDispatched) {
+          finishIntro();
+        }
+      }
+    }
+
+    function completeIntroAndRevealDirect() {
+      if (hardFailsafeTimeout) {
+        clearTimeout(hardFailsafeTimeout);
+        hardFailsafeTimeout = null;
+      }
+      if (introLoopRafId) {
+        cancelAnimationFrame(introLoopRafId);
+        introLoopRafId = null;
+      }
+      isIntroDone = true;
+
+      const posterImg = document.getElementById('introPosterImg');
+      if (posterImg) posterImg.style.display = 'none';
+
+      renderFinalLogo(cleanLogoImg);
+      const glow = document.getElementById('visualLogoGlow');
+      if (glow) glow.classList.add('active');
+      startLogoShineLoopEngine();
+
+      const overlay = document.getElementById('fullscreenIntroLoading');
+      if (overlay) {
+        if (typeof gsap !== 'undefined') {
+          gsap.to(overlay, {
+            opacity: 0,
+            duration: 0.35,
+            ease: 'power2.out',
+            onComplete: () => {
+              overlay.style.pointerEvents = 'none';
+              overlay.style.display = 'none';
+            }
+          });
+        } else if (overlay.animate) {
+          const fade = overlay.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 350, fill: 'forwards' });
+          fade.onfinish = () => {
+            overlay.style.pointerEvents = 'none';
+            overlay.style.display = 'none';
+          };
+        } else {
+          overlay.style.pointerEvents = 'none';
+          overlay.style.display = 'none';
+        }
+      }
+
+      document.querySelectorAll('.left-card-stagger, .right-card-stagger').forEach(el => {
+        el.style.opacity = '1';
+        el.style.transform = 'none';
+      });
+    }
+
+    function completeIntroAndReveal() {
+      executeLogoGlide();
+    }
+
+    function initLogoAnimationEngine() {
+      const introCanvas = document.getElementById('introCanvas');
+      const posterImg = document.getElementById('introPosterImg');
+      if (!introCanvas) {
+        completeIntroAndRevealDirect();
+        return;
+      }
+      const ctx = introCanvas.getContext('2d');
+      if (ctx) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+      }
+
+      let animationStarted = false;
+      let hasDrawnFirstFrame = false;
+      logoFrameImages = new Array(TOTAL_LOGO_FRAMES);
+
+      // Preload seluruh 69 frame animasi (ezgif-frame-001.jpg s/d ezgif-frame-069.jpg)
+      for (let i = 1; i <= TOTAL_LOGO_FRAMES; i++) {
+        const img = new Image();
+        const numStr = String(i).padStart(3, '0');
+        const frameIdx = i - 1;
+        img.onload = () => {
+          loadedLogoFrames++;
+          if (frameIdx === 0 && ctx && currentLogoFrameIndex === 0 && !hasDrawnFirstFrame) {
+            ctx.drawImage(img, 0, 0, introCanvas.width, introCanvas.height);
+            hasDrawnFirstFrame = true;
+            if (posterImg) posterImg.style.display = 'none';
+          }
+          if (!animationStarted && (loadedLogoFrames >= 3 || loadedLogoFrames >= TOTAL_LOGO_FRAMES)) {
+            startPlayback();
+          }
+        };
+        img.onerror = () => {
+          loadedLogoFrames++;
+          if (!animationStarted) {
+            startPlayback();
+          }
+        };
+        img.src = `assets/animasi/ezgif-frame-${numStr}.jpg`;
+        logoFrameImages[frameIdx] = img;
+      }
+
+      function startPlayback() {
+        if (animationStarted || isIntroDone) return;
+        animationStarted = true;
+        // Poster tetap terlihat jika canvas belum selesai merender frame pertama (anti blank freeze)
+        if (hasDrawnFirstFrame && posterImg) {
+          posterImg.style.display = 'none';
+        }
+        lastFrameTimestamp = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+        introLoopRafId = requestAnimationFrame(stepAnimation);
+      }
+
+      // Safety start timer: segera putar animasi dalam 100ms
+      setTimeout(() => {
+        if (!animationStarted) startPlayback();
+      }, 100);
+
+      function stepAnimation(timestamp) {
+        if (isIntroDone) return;
+        if (!lastFrameTimestamp) lastFrameTimestamp = timestamp;
+        const delta = timestamp - lastFrameTimestamp;
+
+        if (delta >= FRAME_INTERVAL) {
+          lastFrameTimestamp = timestamp - (delta % FRAME_INTERVAL);
+          const currentImg = logoFrameImages[currentLogoFrameIndex];
+
+          // Jika frame saat ini siap, render ke canvas tanpa penahanan blocking
+          if (currentImg && ctx && (currentImg.complete || currentImg.naturalWidth)) {
+            ctx.drawImage(currentImg, 0, 0, introCanvas.width, introCanvas.height);
+            hasDrawnFirstFrame = true;
+            if (posterImg && posterImg.style.display !== 'none') {
+              posterImg.style.display = 'none';
+            }
+          }
+
+          currentLogoFrameIndex++;
+
+          // TEPAT 1 KALI SAJA (NO LOOP): Berhenti di frame ke-69
+          if (currentLogoFrameIndex >= TOTAL_LOGO_FRAMES) {
+            if (cleanLogoImg && cleanLogoImg.complete && cleanLogoImg.naturalWidth && ctx) {
+              ctx.clearRect(0, 0, introCanvas.width, introCanvas.height);
+              ctx.drawImage(cleanLogoImg, 0, 0, introCanvas.width, introCanvas.height);
+            } else {
+              const finalImg = logoFrameImages[TOTAL_LOGO_FRAMES - 1];
+              if (finalImg && ctx && (finalImg.complete || finalImg.naturalWidth)) {
+                ctx.drawImage(finalImg, 0, 0, introCanvas.width, introCanvas.height);
+              }
+            }
+            if (posterImg && posterImg.style.display !== 'none') {
+              posterImg.style.display = 'none';
+            }
+            // Meluncur mulus ke panel kiri
+            setTimeout(executeLogoGlide, 80);
+            return;
+          }
+        }
+
+        introLoopRafId = requestAnimationFrame(stepAnimation);
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initLogoAnimationEngine);
+      } else {
+        initLogoAnimationEngine();
+      }
+      window.addEventListener('resize', () => {
+        if (isIntroDone) {
+          renderFinalLogo(cleanLogoImg);
+        }
+      });
+    }
+
+    // ===== 3. ROBO-NESAS INTERACTIVE MASCOT ENGINE =====
+    // Clean Closed Eyes (> <) on Password Focus & Clean One-Eye Peek (o <) on Password Visibility Toggle
+    // Option 2: Interactive Mouse Cursor Tracking + Dynamic Upper Body & Neck Leaning
+    let isEyesClosed = false;
+    let isCovering = false;
+    let isPeeking = false;
+    let isHappySuccess = false;
+    let isInputFocused = false;
+    let isMascotInitialized = false;
+    let mascotBlurTimer = null;
+    let mascotGreetingTimer = null;
+    let mouseRafId = null;
+    let lastMouseX = null;
+    let lastMouseY = null;
+    let anticipationTimeline = null;
+    let antennaIdleTween = null;
+
+    function resumeAntennaIdleWobble() {
+      const ant = document.getElementById('mascotAntenna');
+      if (!ant || typeof gsap === 'undefined') return;
+      if (isInputFocused || isEyesClosed || isCovering || isPeeking || isHappySuccess) return;
+      if (antennaIdleTween) {
+        antennaIdleTween.kill();
+        antennaIdleTween = null;
+      }
+      antennaIdleTween = gsap.to(ant, {
+        rotation: 2.5,
+        transformOrigin: '120px 38px',
+        duration: 1.9,
+        ease: 'sine.inOut',
+        repeat: -1,
+        yoyo: true,
+        overwrite: 'auto'
+      });
+    }
+
+    function getUpperBodyTarget() {
+      return document.getElementById('upperBodyChassis') ? '#upperBodyChassis' : '#roboTorso';
+    }
+
+    function setMascotStatus(text, dotColor = '#38bdf8') {
+      const textEl = document.getElementById('mascotStatusText');
+      const dotEl = document.querySelector('.mascot-status-dot');
+      if (textEl) textEl.textContent = text;
+      if (dotEl) {
+        dotEl.style.backgroundColor = dotColor;
+        dotEl.style.boxShadow = `0 0 10px ${dotColor}`;
+      }
+    }
+
+    // Direct helper to set visibility for fallbacks if GSAP CDN is blocked
+    function setMascotEyeFallback(activeGroup, isPivoted = false) {
+      const groups = ['normalEyesGroup', 'closedEyesGroup', 'peekEyesGroup', 'happyEyesGroup'];
+      groups.forEach((g) => {
+        const el = document.getElementById(g);
+        if (el) el.style.opacity = (g === activeGroup) ? '1' : '0';
+      });
+
+      const isPeek = activeGroup === 'peekEyesGroup';
+      const isClosed = activeGroup === 'closedEyesGroup';
+
+      const head = document.getElementById('mascotHead');
+      if (head) {
+        if (isPeek) {
+          head.style.transform = 'rotate(-5deg) translateY(2px)';
+          head.style.transformOrigin = '120px 96px';
+          head.style.rotation = -5;
+          head.style.y = 2;
+        } else if (isClosed || isPivoted) {
+          head.style.transform = 'rotate(-8deg) translateY(4px)';
+          head.style.transformOrigin = '120px 96px';
+          head.style.rotation = -8;
+          head.style.y = 4;
+        } else {
+          head.style.transform = 'none';
+          head.style.transformOrigin = '120px 96px';
+          head.style.rotation = 0;
+          head.style.y = 0;
+        }
+      }
+
+      const armL = document.getElementById('armLeft');
+      const armR = document.getElementById('armRight');
+      if (armL) {
+        armL.style.transform = (isPeek || isClosed || isPivoted) ? 'translate(2px, -2px)' : 'none';
+        armL.style.x = (isPeek || isClosed || isPivoted) ? 2 : 0;
+      }
+      if (armR) {
+        armR.style.transform = (isPeek || isClosed || isPivoted) ? 'translate(-2px, -2px)' : 'none';
+        armR.style.x = (isPeek || isClosed || isPivoted) ? -2 : 0;
+      }
+
+      const ub = document.getElementById('upperBodyChassis') || document.getElementById('roboTorso');
+      if (ub) {
+        if (isPeek) {
+          ub.style.transform = 'rotate(1.2deg) translateX(2px)';
+          ub.style.rotation = 1.2;
+          ub.style.x = 2;
+        } else if (isClosed || isPivoted) {
+          ub.style.transform = 'rotate(-1.5deg) translateX(-2px)';
+          ub.style.rotation = -1.5;
+          ub.style.x = -2;
+        } else {
+          ub.style.transform = 'none';
+          ub.style.rotation = 0;
+          ub.style.x = 0;
+        }
+      }
+
+      const nk = document.getElementById('neckJoint');
+      if (nk) {
+        if (isPeek) {
+          nk.style.transform = 'rotate(1.0deg) translateX(1.5px)';
+          nk.style.rotation = 1.0;
+          nk.style.x = 1.5;
+        } else if (isClosed || isPivoted) {
+          nk.style.transform = 'rotate(-1.2deg) translateX(-1.5px)';
+          nk.style.rotation = -1.2;
+          nk.style.x = -1.5;
+        } else {
+          nk.style.transform = 'none';
+          nk.style.rotation = 0;
+          nk.style.x = 0;
+        }
+      }
+
+      const pl = document.getElementById('pupilLeft');
+      const pr = document.getElementById('pupilRight');
+      if (pl && pl.style) {
+        pl.style.x = 0;
+        pl.style.y = 0;
+        pl.style.transform = 'none';
+      }
+      if (pr && pr.style) {
+        pr.style.x = 0;
+        pr.style.y = 0;
+        pr.style.transform = 'none';
+      }
+
+      if (activeGroup === 'normalEyesGroup') {
+        const antLight = document.getElementById('antennaLight');
+        if (antLight) antLight.setAttribute('fill', '#38bdf8');
+        const pCore = document.getElementById('powerCoreCenter');
+        if (pCore) pCore.setAttribute('fill', '#38bdf8');
+      }
+    }
+
+    // 3.4 Password Focus -> Clean Closed Eyes (> <)
+    // Robot menutup mata secara keren dan bersih (Sensor Nonaktif) tanpa rona pink
+    function closeEyes() {
+      if (anticipationTimeline) {
+        anticipationTimeline.kill();
+        anticipationTimeline = null;
+      }
+      if (mascotBlurTimer) {
+        clearTimeout(mascotBlurTimer);
+        mascotBlurTimer = null;
+      }
+      isInputFocused = false;
+      isEyesClosed = true;
+      isCovering = true;
+      isPeeking = false;
+      isHappySuccess = false;
+
+      const upperBodyTarget = getUpperBodyTarget();
+
+      // Lengan/tangan santai sedikit merapat ke bodi
+      if (typeof gsap !== 'undefined') {
+        gsap.to(['#armLeft'], {
+          x: 2,
+          y: -2,
+          rotation: 0,
+          duration: 0.35,
+          ease: 'power2.out'
+        });
+        gsap.to(['#armRight'], {
+          x: -2,
+          y: -2,
+          rotation: 0,
+          duration: 0.35,
+          ease: 'power2.out'
+        });
+        gsap.to(['#fingersLeft', '#fingersRight'], { rotation: 0, duration: 0.2 });
+
+        // Normal, peek, and happy eyes fade out
+        gsap.to(['#normalEyesGroup', '#peekEyesGroup', '#happyEyesGroup'], { opacity: 0, duration: 0.15, ease: 'power2.out' });
+
+        // Closed eyes (> <) activate with aesthetic cyan glow
+        gsap.fromTo('#closedEyesGroup',
+          { opacity: 0, scale: 0.94, transformOrigin: '120px 86px' },
+          { opacity: 1, scale: 1, duration: 0.24, ease: 'back.out(1.4)' }
+        );
+
+        // Kepala robot tilt mecha ke samping (-8deg, y: 4px)
+        gsap.to('#mascotHead', {
+          rotation: -8,
+          y: 4,
+          transformOrigin: '120px 96px',
+          duration: 0.35,
+          ease: 'power2.out'
+        });
+
+        // Torso dada & leher condong santai / sedikit malu ke kiri
+        gsap.to(upperBodyTarget, {
+          x: -2,
+          rotation: -1.5,
+          transformOrigin: '120px 216px',
+          duration: 0.35,
+          ease: 'power2.out'
+        });
+        gsap.to('#neckJoint', {
+          x: -1.5,
+          rotation: -1.2,
+          transformOrigin: '120px 158px',
+          duration: 0.35,
+          ease: 'power2.out'
+        });
+      } else {
+        setMascotEyeFallback('closedEyesGroup', true);
+      }
+
+      setMascotStatus('🙈 Robo-NESAS Menutup Mata... (Sensor Nonaktif)', '#38bdf8');
+    }
+    const coverEyes = closeEyes;
+    const coverMascotEyes = closeEyes;
+
+    // 3.5 Password Blur -> Open Eyes Normal
+    function openEyes() {
+      if (anticipationTimeline) {
+        anticipationTimeline.kill();
+        anticipationTimeline = null;
+      }
+      if (mascotBlurTimer) {
+        clearTimeout(mascotBlurTimer);
+        mascotBlurTimer = null;
+      }
+      const activeEl = (typeof document !== 'undefined') ? document.activeElement : null;
+      const isInputCurrentlyActive = activeEl && (activeEl.id === 'loginEmail' || activeEl.id === 'regNama' || activeEl.id === 'regEmail');
+      if (!isInputCurrentlyActive) {
+        isInputFocused = false;
+      }
+      isEyesClosed = false;
+      isCovering = false;
+      isPeeking = false;
+      isHappySuccess = false;
+
+      const upperBodyTarget = getUpperBodyTarget();
+
+      if (typeof gsap !== 'undefined') {
+        // Tangan kembali normal di samping (idle)
+        gsap.to(['#armLeft', '#armRight'], { x: 0, y: 0, rotation: 0, duration: 0.35, ease: 'power2.out' });
+        gsap.to(['#fingersLeft', '#fingersRight'], { rotation: 0, duration: 0.2 });
+
+        // Fade out closed, peek, happy states
+        gsap.to(['#closedEyesGroup', '#peekEyesGroup', '#happyEyesGroup'], { opacity: 0, duration: 0.2, ease: 'power2.out' });
+
+        // Kembalikan glow cyan pada beacon dan power core jika sebelumnya happy state
+        gsap.to(['#antennaLight', '#powerCoreCenter'], { fill: '#38bdf8', scale: 1, duration: 0.3 });
+
+        // Kepala, torso dan leher kembali tegak dengan soft spring damping
+        gsap.to('#mascotHead', { rotation: 0, y: 0, transformOrigin: '120px 96px', duration: 0.45, ease: 'back.out(1.4)' });
+        gsap.to(upperBodyTarget, { x: 0, y: 0, rotation: 0, transformOrigin: '120px 216px', duration: 0.48, ease: 'back.out(1.4)' });
+        gsap.to('#neckJoint', { x: 0, rotation: 0, transformOrigin: '120px 158px', duration: 0.42, ease: 'back.out(1.4)' });
+        const ant = document.getElementById('mascotAntenna');
+        if (ant) {
+          gsap.to(ant, {
+            rotation: 0,
+            transformOrigin: '120px 38px',
+            duration: 0.55,
+            ease: 'elastic.out(1.2, 0.4)',
+            overwrite: 'auto',
+            onComplete: resumeAntennaIdleWobble
+          });
+        }
+
+        // Normal eyes open back with smooth pop
+        gsap.fromTo('#normalEyesGroup',
+          { opacity: 0, scale: 0.95, transformOrigin: '120px 86px' },
+          { opacity: 1, scale: 1, duration: 0.25, ease: 'power2.out' }
+        );
+        gsap.to(['#pupilLeft', '#pupilRight'], { x: 0, y: 0, scaleY: 1, duration: 0.25 });
+      } else {
+        setMascotEyeFallback('normalEyesGroup', false);
+      }
+
+      setMascotStatus('Robo-NESAS • Siap Mengawasi Presensi', '#38bdf8');
+
+      // Sambung kembali pelacakan kursor mouse jika kursor tersedia
+      if (lastMouseX !== null && lastMouseY !== null) {
+        setTimeout(() => {
+          if (!isInputFocused && !isEyesClosed && !isCovering && !isPeeking && !isHappySuccess) {
+            updateMouseGaze(lastMouseX, lastMouseY);
+          }
+        }, 150);
+      }
+    }
+    const uncoverEyes = openEyes;
+
+    // 3.6 Password Visibility Toggle -> One-Eye Peek (o <) Clean
+    function peekEyes(shouldPeek) {
+      if (mascotBlurTimer) {
+        clearTimeout(mascotBlurTimer);
+        mascotBlurTimer = null;
+      }
+      isPeeking = !!shouldPeek;
+
+      const upperBodyTarget = getUpperBodyTarget();
+
+      if (shouldPeek) {
+        isEyesClosed = true;
+        isCovering = true;
+        isHappySuccess = false;
+        if (typeof gsap !== 'undefined') {
+          // Robot membuka satu mata mengintip bersih (o <)
+          gsap.to(['#closedEyesGroup', '#normalEyesGroup', '#happyEyesGroup'], { opacity: 0, duration: 0.15 });
+          gsap.fromTo('#peekEyesGroup',
+            { opacity: 0, scale: 0.94, transformOrigin: '120px 86px' },
+            { opacity: 1, scale: 1, duration: 0.22, ease: 'back.out(1.4)' }
+          );
+          gsap.to('#mascotHead', { rotation: -5, y: 2, transformOrigin: '120px 96px', duration: 0.3, ease: 'power2.out' });
+          gsap.to(upperBodyTarget, { x: 2, rotation: 1.2, transformOrigin: '120px 216px', duration: 0.3, ease: 'power2.out' });
+          gsap.to('#neckJoint', { x: 1.5, rotation: 1.0, transformOrigin: '120px 158px', duration: 0.3, ease: 'power2.out' });
+          gsap.to(['#armLeft'], { x: 2, y: -2, rotation: 0, duration: 0.25 });
+          gsap.to(['#armRight'], { x: -2, y: -2, rotation: 0, duration: 0.25 });
+        } else {
+          setMascotEyeFallback('peekEyesGroup', true);
+        }
+        setMascotStatus('👀 Robo-NESAS Mengintip Sandi...', '#38bdf8');
+      } else {
+        // Robot menutup kedua mata kembali (> <)
+        closeEyes();
+      }
+    }
+    const peekMascotEyes = peekEyes;
+
+    // 3.7 Happy Arc Eyes on Success (^ _ ^)
+    function triggerHappyEyes() {
+      if (mascotBlurTimer) {
+        clearTimeout(mascotBlurTimer);
+        mascotBlurTimer = null;
+      }
+      if (mascotGreetingTimer) {
+        clearTimeout(mascotGreetingTimer);
+        mascotGreetingTimer = null;
+      }
+      isInputFocused = false;
+      isEyesClosed = false;
+      isCovering = false;
+      isPeeking = false;
+      isHappySuccess = true;
+
+      const upperBodyTarget = getUpperBodyTarget();
+
+      if (typeof gsap !== 'undefined') {
+        // Tangan santai di samping
+        gsap.to(['#armLeft', '#armRight'], { x: 0, y: 0, rotation: 0, duration: 0.35 });
+        gsap.to(['#fingersLeft', '#fingersRight'], { rotation: 0, duration: 0.2 });
+        gsap.to('#mascotHead', { rotation: 0, y: 0, transformOrigin: '120px 96px', duration: 0.3 });
+        gsap.to(upperBodyTarget, { x: 0, rotation: 0, transformOrigin: '120px 216px', duration: 0.35 });
+        gsap.to('#neckJoint', { x: 0, rotation: 0, transformOrigin: '120px 158px', duration: 0.35 });
+
+        // Fade out other eye groups, fade in happy arcs (^ _ ^)
+        gsap.to(['#normalEyesGroup', '#closedEyesGroup', '#peekEyesGroup'], { opacity: 0, duration: 0.2 });
+        gsap.fromTo('#happyEyesGroup',
+          { opacity: 0, scale: 0.92, transformOrigin: '120px 86px' },
+          { opacity: 1, scale: 1, duration: 0.28, ease: 'back.out(1.8)' }
+        );
+
+        // Antenna beacon pulse & power core glow pulse
+        gsap.to('#antennaLight', { scale: 1.4, fill: '#10b981', transformOrigin: 'center center', repeat: 4, yoyo: true, duration: 0.2 });
+        gsap.to('#powerCoreCenter', { scale: 1.3, fill: '#10b981', transformOrigin: '120px 188px', repeat: 4, yoyo: true, duration: 0.2 });
+      } else {
+        setMascotEyeFallback('happyEyesGroup', false);
+      }
+
+      setMascotStatus('🎉 Presensi Berhasil! Selamat Datang!', '#10b981');
+    }
+    const happyMascotEyes = triggerHappyEyes;
+
+    // 3.8 Option 2: Interactive Mouse Cursor Tracking (Mata, Kepala, Badan & Leher Melacak Kursor)
+    function updateMouseGaze(clientX, clientY) {
+      if (isInputFocused || isEyesClosed || isCovering || isPeeking || isHappySuccess) {
+        return;
+      }
+      const active = (typeof document !== 'undefined') ? document.activeElement : null;
+      if (active && (active.id === 'loginEmail' || active.id === 'regNama' || active.id === 'regEmail' || active.id === 'loginPassword' || active.id === 'regPassword')) {
+        return;
+      }
+      const mascotSvg = document.getElementById('roboNesasMascot');
+      if (!mascotSvg) return;
+
+      const winW = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : 1200;
+      const winH = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 800;
+
+      let centerX = winW * 0.28;
+      let centerY = winH * 0.45;
+
+      if (typeof mascotSvg.getBoundingClientRect === 'function') {
+        const rect = mascotSvg.getBoundingClientRect();
+        if (rect && rect.width > 0 && rect.height > 0) {
+          centerX = rect.left + rect.width * (120 / 240);
+          centerY = rect.top + rect.height * (86 / 285);
+        }
+      }
+
+      const deltaX = clientX - centerX;
+      const deltaY = clientY - centerY;
+
+      const maxDistX = Math.max(winW * 0.65, 350);
+      const maxDistY = Math.max(winH * 0.65, 300);
+
+      const normX = Math.max(-1, Math.min(1, deltaX / maxDistX));
+      const normY = Math.max(-1, Math.min(1, deltaY / maxDistY));
+
+      // Range spesifikasi teknis Opsi 2:
+      // Bola mata: x: -7px s/d +7px, y: -5px s/d +5px
+      const targetPupilX = normX * 7.0;
+      const targetPupilY = normY * 5.0;
+
+      // Kepala robot: rotasi -4deg s/d +5deg
+      const targetHeadRot = normX >= 0 ? (normX * 5.0) : (normX * 4.0);
+      const targetHeadY = normY * 3.0;
+
+      // Leher dan sasis dada ikut condong mikro mengikuti kursor
+      const targetTorsoX = normX * 2.2;
+      const targetTorsoRot = normX * 1.8;
+      const targetNeckX = normX * 1.6;
+      const targetNeckRot = normX * 1.4;
+
+      const upperBodyTarget = getUpperBodyTarget();
+
+      if (typeof gsap !== 'undefined') {
+        gsap.to(['#pupilLeft', '#pupilRight'], {
+          x: targetPupilX,
+          y: targetPupilY,
+          duration: 0.38,
+          ease: 'power2.out',
+          overwrite: 'auto'
+        });
+        gsap.to('#mascotHead', {
+          rotation: targetHeadRot,
+          y: targetHeadY,
+          transformOrigin: '120px 96px',
+          duration: 0.42,
+          ease: 'power2.out',
+          overwrite: 'auto'
+        });
+        gsap.to(upperBodyTarget, {
+          x: targetTorsoX,
+          rotation: targetTorsoRot,
+          transformOrigin: '120px 216px',
+          duration: 0.45,
+          ease: 'power2.out',
+          overwrite: 'auto'
+        });
+        gsap.to('#neckJoint', {
+          x: targetNeckX,
+          rotation: targetNeckRot,
+          transformOrigin: '120px 158px',
+          duration: 0.42,
+          ease: 'power2.out',
+          overwrite: 'auto'
+        });
+        const ant = document.getElementById('mascotAntenna');
+        if (ant) {
+          gsap.to(ant, {
+            rotation: normX * 1.5,
+            transformOrigin: '120px 38px',
+            duration: 0.45,
+            ease: 'sine.out',
+            overwrite: 'auto'
+          });
+        }
+      } else {
+        const pl = document.getElementById('pupilLeft');
+        const pr = document.getElementById('pupilRight');
+        const hd = document.getElementById('mascotHead');
+        const ub = document.getElementById('upperBodyChassis') || document.getElementById('roboTorso');
+        const nk = document.getElementById('neckJoint');
+        if (pl && pl.style) {
+          pl.style.x = targetPupilX;
+          pl.style.y = targetPupilY;
+          pl.style.transform = `translate(${targetPupilX}px, ${targetPupilY}px)`;
+        }
+        if (pr && pr.style) {
+          pr.style.x = targetPupilX;
+          pr.style.y = targetPupilY;
+          pr.style.transform = `translate(${targetPupilX}px, ${targetPupilY}px)`;
+        }
+        if (hd && hd.style) {
+          hd.style.rotation = targetHeadRot;
+          hd.style.y = targetHeadY;
+          hd.style.transform = `translate(0px, ${targetHeadY}px) rotate(${targetHeadRot}deg)`;
+        }
+        if (ub && ub.style) {
+          ub.style.rotation = targetTorsoRot;
+          ub.style.x = targetTorsoX;
+          ub.style.transform = `translate(${targetTorsoX}px, 0px) rotate(${targetTorsoRot}deg)`;
+        }
+        if (nk && nk.style) {
+          nk.style.rotation = targetNeckRot;
+          nk.style.x = targetNeckX;
+          nk.style.transform = `translate(${targetNeckX}px, 0px) rotate(${targetNeckRot}deg)`;
+        }
+      }
+    }
+
+    function handleMouseMove(e) {
+      if (!e) return;
+      lastMouseX = e.clientX;
+      lastMouseY = e.clientY;
+      if (mouseRafId) return;
+
+      const raf = (typeof window !== 'undefined' && window.requestAnimationFrame)
+        ? window.requestAnimationFrame
+        : ((fn) => setTimeout(fn, 16));
+
+      mouseRafId = raf(() => {
+        mouseRafId = null;
+        if (lastMouseX !== null && lastMouseY !== null) {
+          updateMouseGaze(lastMouseX, lastMouseY);
+        }
+      });
+    }
+
+    // Expose helpers globally
+    window.closeEyes = closeEyes;
+    window.coverEyes = closeEyes;
+    window.coverMascotEyes = closeEyes;
+    window.openEyes = openEyes;
+    window.uncoverEyes = openEyes;
+    window.peekEyes = peekEyes;
+    window.peekMascotEyes = peekEyes;
+    window.triggerHappyEyes = triggerHappyEyes;
+    window.happyMascotEyes = triggerHappyEyes;
+    window.updateMouseGaze = updateMouseGaze;
+    window.handleMouseMove = handleMouseMove;
+    window.getMascotState = () => ({
+      isEyesClosed,
+      isCovering,
+      isPeeking,
+      isHappySuccess,
+      isInputFocused
+    });
+
+    function handlePasswordFocus(e) {
+      if (mascotBlurTimer) {
+        clearTimeout(mascotBlurTimer);
+        mascotBlurTimer = null;
+      }
+      if (mascotGreetingTimer) {
+        clearTimeout(mascotGreetingTimer);
+        mascotGreetingTimer = null;
+      }
+      isInputFocused = false;
+      const inp = e && e.target ? e.target : document.activeElement;
+      if (inp && inp.type === 'text') {
+        peekEyes(true);
+      } else {
+        closeEyes();
+      }
+    }
+
+    function handlePasswordInput(e) {
+      isInputFocused = false;
+      const inp = e && e.target ? e.target : document.activeElement;
+      if (inp && inp.type === 'text') {
+        if (!isPeeking) peekEyes(true);
+      } else {
+        if (!isEyesClosed || isPeeking) closeEyes();
+      }
+    }
+
+    function handlePasswordBlur(e) {
+      if (mascotBlurTimer) {
+        clearTimeout(mascotBlurTimer);
+      }
+      mascotBlurTimer = setTimeout(() => {
+        const activeEl = document.activeElement;
+        const loginPassword = document.getElementById('loginPassword');
+        const regPassword = document.getElementById('regPassword');
+        if (activeEl === loginPassword || activeEl === regPassword) return;
+        // Tetap tutup/intip HANYA jika yang aktif adalah tombol toggle lihat password itu sendiri
+        if (activeEl && ((activeEl.classList && activeEl.classList.contains('btn-eye-toggle')) || (activeEl.closest && activeEl.closest('.btn-eye-toggle')))) {
+          return;
+        }
+        if (isHappySuccess) return;
+        openEyes();
+      }, 60);
+    }
+
+    function initRoboNesasMascot() {
+      if (isMascotInitialized) return;
+      const mascotRoot = document.getElementById('mascotRoot');
+      const pupilLeft = document.getElementById('pupilLeft');
+      const pupilRight = document.getElementById('pupilRight');
+      const armLeft = document.getElementById('armLeft');
+      const armRight = document.getElementById('armRight');
+      const fingersLeft = document.getElementById('fingersLeft');
+      const fingersRight = document.getElementById('fingersRight');
+      const loginEmail = document.getElementById('loginEmail');
+      const loginPassword = document.getElementById('loginPassword');
+      const regNama = document.getElementById('regNama');
+      const regEmail = document.getElementById('regEmail');
+      const regPassword = document.getElementById('regPassword');
+
+      if (!mascotRoot) return;
+      isMascotInitialized = true;
+
+      // Pastikan posisi tangan santai di samping bodi (idle)
+      if (typeof gsap !== 'undefined') {
+        gsap.set(['#armLeft', '#armRight'], { x: 0, y: 0, rotation: 0 });
+
+        // 3.1 Idle Floating with Elastic Squash & Stretch Breathing
+        // Sedikit memanjang saat naik (scaleY: 1.025, scaleX: 0.98) dan memampat lembut saat turun (scaleY: 0.98, scaleX: 1.02)
+        gsap.set(mascotRoot, { transformOrigin: '120px 270px', scaleY: 0.98, scaleX: 1.02 });
+        gsap.to(mascotRoot, {
+          y: -6,
+          scaleY: 1.025,
+          scaleX: 0.98,
+          duration: 2.4,
+          ease: 'sine.inOut',
+          repeat: -1,
+          yoyo: true
+        });
+
+        // Secondary breathing shadow expansion synced with hover
+        const shadow = document.getElementById('hoverShadowGroup');
+        if (shadow) {
+          gsap.to(shadow, {
+            scale: 0.88,
+            opacity: 0.7,
+            transformOrigin: '120px 274px',
+            duration: 2.4,
+            ease: 'sine.inOut',
+            repeat: -1,
+            yoyo: true
+          });
+        }
+
+        // Antenna secondary spring wobble
+        resumeAntennaIdleWobble();
+
+        // Antenna beacon gentle pulse
+        const antLight = document.getElementById('antennaLight');
+        if (antLight) {
+          gsap.to(antLight, {
+            scale: 1.18,
+            opacity: 0.9,
+            transformOrigin: '120px 18px',
+            duration: 1.6,
+            ease: 'sine.inOut',
+            repeat: -1,
+            yoyo: true
+          });
+        }
+
+        gsap.to('#powerCoreCenter', {
+          scale: 1.15,
+          opacity: 0.85,
+          transformOrigin: '120px 188px',
+          duration: 1.8,
+          ease: 'sine.inOut',
+          repeat: -1,
+          yoyo: true
+        });
+      }
+
+      // 3.2 Idle Blinking Routine
+      function blinkEyes() {
+        if (isEyesClosed || isCovering || isPeeking || isHappySuccess) {
+          setTimeout(blinkEyes, 2000);
+          return;
+        }
+        const normalEyes = document.getElementById('normalEyesGroup');
+        if (!normalEyes) return;
+        if (typeof gsap !== 'undefined') {
+          gsap.timeline()
+            .to(['#pupilLeft', '#pupilRight'], { scaleY: 0.12, transformOrigin: 'center center', duration: 0.1, ease: 'power1.in' })
+            .to(['#pupilLeft', '#pupilRight'], { scaleY: 1, transformOrigin: 'center center', duration: 0.12, ease: 'power1.out' });
+        }
+        
+        const nextBlink = Math.random() * 4000 + 3000;
+        setTimeout(blinkEyes, nextBlink);
+      }
+      setTimeout(blinkEyes, 2500);
+
+      // Helper untuk membangunkan robot & membuka mata seketika jika sebelumnya tertutup dari password
+      function ensureEyesOpen() {
+        if (mascotBlurTimer) {
+          clearTimeout(mascotBlurTimer);
+          mascotBlurTimer = null;
+        }
+        if (isEyesClosed || isCovering || isPeeking) {
+          openEyes();
+        }
+      }
+
+      // 3.3 Dynamic Humanized Eye Tracking & Right Leaning on Email / Text Typing in the Right Column
+      // Robot di kolom kiri condong dan nongol nyata ke kanan menghadap kartu formulir saat user mengetik
+      function handleEmailInput(val) {
+        if (isHappySuccess) return;
+        ensureEyesOpen();
+        isInputFocused = true;
+
+        const len = (val || '').length;
+        const maxLen = 30;
+        const ratio = Math.max(0, Math.min(1, len / maxLen));
+        const isSplitDesktop = typeof window === 'undefined' || !window.innerWidth || window.innerWidth > 768;
+
+        // Humanized Organic Gaze & Reading Micro-Saccade:
+        const microSaccadeX = Math.sin(len * 1.5) * 0.4;
+        const microSaccadeY = Math.cos(len * 2.0) * 0.3;
+
+        // Spesifikasi Teknis Leaning ke Kanan (Playful Pixar / Kawaii Robot):
+        // Torso dada: x: 4.2px s/d 7.0px, rotation: 2.6deg s/d 4.5deg
+        // Leher: x: 3.2px s/d 5.0px, rotation: 2.2deg s/d 3.5deg
+        // Kepala: curious head tilt rotation: 6.0deg s/d 8.0deg, y: 2.0px s/d 4.0px
+        // Pupil mata: melirik tajam x: 7.2px s/d 11.0px, y: 2.5px s/d 4.0px
+        const targetPupilX = isSplitDesktop 
+          ? (7.2 + (ratio * 3.8) + microSaccadeX) 
+          : (((ratio - 0.5) * 3.5) + microSaccadeX);
+        const targetPupilY = isSplitDesktop 
+          ? (2.5 + (ratio * 1.5) + microSaccadeY) 
+          : (4.0 + (ratio * 1.5) + microSaccadeY);
+
+        const targetHeadRot = isSplitDesktop ? (6.0 + (ratio * 2.0)) : 0;
+        const targetHeadY = isSplitDesktop ? (2.0 + (ratio * 2.0)) : 1.5;
+
+        const targetTorsoX = isSplitDesktop ? (4.2 + (ratio * 2.8)) : 0;
+        const targetTorsoRot = isSplitDesktop ? (2.6 + (ratio * 1.9)) : 0;
+
+        const targetNeckX = isSplitDesktop ? (3.2 + (ratio * 1.8)) : 0;
+        const targetNeckRot = isSplitDesktop ? (2.2 + (ratio * 1.3)) : 0;
+
+        const upperBodyTarget = getUpperBodyTarget();
+
+        if (typeof gsap !== 'undefined') {
+          // Pupil melirik tajam terlebih dahulu dengan sine.out yang halus
+          gsap.to(['#pupilLeft', '#pupilRight'], {
+            x: targetPupilX,
+            y: targetPupilY,
+            duration: 0.28,
+            ease: 'sine.out',
+            overwrite: 'auto'
+          });
+
+          // Kepala robot menoleh dengan curious head tilt yang luwes
+          gsap.to('#mascotHead', {
+            rotation: targetHeadRot,
+            y: targetHeadY,
+            transformOrigin: '120px 96px',
+            duration: 0.38,
+            ease: 'back.out(1.2)',
+            overwrite: 'auto'
+          });
+
+          // Sasis dada / torso condong anggun ke depan/kanan dengan lengkungan kinematika
+          gsap.to(upperBodyTarget, {
+            x: targetTorsoX,
+            y: 0,
+            rotation: targetTorsoRot,
+            transformOrigin: '120px 216px',
+            duration: 0.42,
+            ease: 'back.out(1.2)',
+            overwrite: 'auto'
+          });
+
+          // Leher ikut condong fleksibel menyelaraskan torso dan kepala
+          gsap.to('#neckJoint', {
+            x: targetNeckX,
+            rotation: targetNeckRot,
+            transformOrigin: '120px 158px',
+            duration: 0.40,
+            ease: 'power2.out',
+            overwrite: 'auto'
+          });
+
+          // Goyangan antena penasaran (secondary spring wobble)
+          const ant = document.getElementById('mascotAntenna');
+          if (ant) {
+            gsap.to(ant, {
+              rotation: isSplitDesktop ? (targetHeadRot * 0.45) : 0,
+              transformOrigin: '120px 38px',
+              duration: 0.48,
+              ease: 'elastic.out(1.2, 0.4)',
+              overwrite: 'auto'
+            });
+          }
+
+          // Mikro-kedip membaca pada interval pengetikan
+          if (len > 0 && len % 12 === 0) {
+            gsap.timeline()
+              .to(['#pupilLeft', '#pupilRight'], { scaleY: 0.15, transformOrigin: 'center center', duration: 0.08, ease: 'power1.in' })
+              .to(['#pupilLeft', '#pupilRight'], { scaleY: 1, transformOrigin: 'center center', duration: 0.1, ease: 'power1.out' });
+          }
+        } else {
+          // Fallback tanpa GSAP (misal pada unit test mock)
+          const pl = document.getElementById('pupilLeft');
+          const pr = document.getElementById('pupilRight');
+          const hd = document.getElementById('mascotHead');
+          const ub = document.getElementById('upperBodyChassis') || document.getElementById('roboTorso');
+          const nk = document.getElementById('neckJoint');
+          if (pl && pl.style) {
+            pl.style.x = targetPupilX;
+            pl.style.y = targetPupilY;
+            pl.style.transform = `translate(${targetPupilX}px, ${targetPupilY}px)`;
+          }
+          if (pr && pr.style) {
+            pr.style.x = targetPupilX;
+            pr.style.y = targetPupilY;
+            pr.style.transform = `translate(${targetPupilX}px, ${targetPupilY}px)`;
+          }
+          if (hd && hd.style) {
+            hd.style.rotation = targetHeadRot;
+            hd.style.y = targetHeadY;
+            hd.style.transform = `translate(0px, ${targetHeadY}px) rotate(${targetHeadRot}deg)`;
+          }
+          if (ub && ub.style) {
+            ub.style.rotation = targetTorsoRot;
+            ub.style.x = targetTorsoX;
+            ub.style.transform = `translate(${targetTorsoX}px, 0px) rotate(${targetTorsoRot}deg)`;
+          }
+          if (nk && nk.style) {
+            nk.style.rotation = targetNeckRot;
+            nk.style.x = targetNeckX;
+            nk.style.transform = `translate(${targetNeckX}px, 0px) rotate(${targetNeckRot}deg)`;
+          }
+        }
+
+        setMascotStatus('Robo-NESAS Memperhatikan...', '#38bdf8');
+      }
+
+      function handleEmailFocus(e) {
+        if (isHappySuccess) return;
+        if (mascotGreetingTimer) {
+          clearTimeout(mascotGreetingTimer);
+          mascotGreetingTimer = null;
+        }
+        if (anticipationTimeline) {
+          anticipationTimeline.kill();
+          anticipationTimeline = null;
+        }
+        ensureEyesOpen();
+        const val = (e && e.target ? e.target.value : '') || '';
+
+        // Jika robot sudah dalam posisi fokus (misal user beralih antar input nama & email),
+        // langsung update gerakan tanpa mengulang ancang-ancang mundur yang menghentak
+        if (isInputFocused) {
+          handleEmailInput(val);
+          return;
+        }
+
+        isInputFocused = true;
+
+        // Playful Pixar Anticipation: robot menarik diri mundur sejenak (100ms x: -2px, y: -1px, rotation: -1deg)
+        // lalu bergerak condong ke depan/kanan dengan lengkungan kinematika leher-torso-kepala yang anggun
+        if (typeof gsap !== 'undefined' && gsap.timeline && (gsap.version || gsap.ticker)) {
+          const upperBodyTarget = getUpperBodyTarget();
+          anticipationTimeline = gsap.timeline({
+            onComplete: () => {
+              anticipationTimeline = null;
+            }
+          });
+          anticipationTimeline
+            .to(upperBodyTarget, { x: -2, y: -1, rotation: -1, duration: 0.1, ease: 'sine.inOut' }, 0)
+            .to('#neckJoint', { x: -1, rotation: -0.7, transformOrigin: '120px 158px', duration: 0.1, ease: 'sine.inOut' }, 0)
+            .to('#mascotHead', { y: -0.5, rotation: -1, transformOrigin: '120px 96px', duration: 0.1, ease: 'sine.inOut' }, 0)
+            .add(() => {
+              anticipationTimeline = null;
+              const activeEl = (typeof document !== 'undefined') ? document.activeElement : null;
+              const isStillActive = activeEl && (activeEl.id === 'loginEmail' || activeEl.id === 'regNama' || activeEl.id === 'regEmail');
+              if (isStillActive) {
+                handleEmailInput(val);
+              }
+            });
+        } else {
+          handleEmailInput(val);
+        }
+      }
+
+      function handleEmailBlur() {
+        if (anticipationTimeline) {
+          anticipationTimeline.kill();
+          anticipationTimeline = null;
+        }
+        isInputFocused = false;
+        if (isEyesClosed || isCovering || isPeeking || isHappySuccess) return;
+
+        const upperBodyTarget = getUpperBodyTarget();
+
+        if (typeof gsap !== 'undefined') {
+          gsap.to(['#pupilLeft', '#pupilRight'], { x: 0, y: 0, duration: 0.42, ease: 'sine.out', overwrite: 'auto' });
+          gsap.to('#mascotHead', { rotation: 0, y: 0, transformOrigin: '120px 96px', duration: 0.48, ease: 'back.out(1.4)', overwrite: 'auto' });
+          gsap.to(upperBodyTarget, { x: 0, y: 0, rotation: 0, transformOrigin: '120px 216px', duration: 0.52, ease: 'back.out(1.4)', overwrite: 'auto' });
+          gsap.to('#neckJoint', { x: 0, rotation: 0, transformOrigin: '120px 158px', duration: 0.46, ease: 'back.out(1.4)', overwrite: 'auto' });
+          const ant = document.getElementById('mascotAntenna');
+          if (ant) {
+            gsap.to(ant, {
+              rotation: 0,
+              transformOrigin: '120px 38px',
+              duration: 0.55,
+              ease: 'elastic.out(1.2, 0.4)',
+              overwrite: 'auto',
+              onComplete: resumeAntennaIdleWobble
+            });
+          }
+        } else {
+          const pl = document.getElementById('pupilLeft');
+          const pr = document.getElementById('pupilRight');
+          const hd = document.getElementById('mascotHead');
+          const ub = document.getElementById('upperBodyChassis') || document.getElementById('roboTorso');
+          const nk = document.getElementById('neckJoint');
+          if (pl && pl.style) { pl.style.x = 0; pl.style.y = 0; pl.style.transform = 'none'; }
+          if (pr && pr.style) { pr.style.x = 0; pr.style.y = 0; pr.style.transform = 'none'; }
+          if (hd && hd.style) { hd.style.rotation = 0; hd.style.y = 0; hd.style.transform = 'none'; }
+          if (ub && ub.style) { ub.style.rotation = 0; ub.style.x = 0; ub.style.transform = 'none'; }
+          if (nk && nk.style) { nk.style.rotation = 0; nk.style.x = 0; nk.style.transform = 'none'; }
+        }
+        setMascotStatus('', '#38bdf8');
+
+        // Melanjutkan pelacakan kursor mouse jika ada
+        if (lastMouseX !== null && lastMouseY !== null) {
+          setTimeout(() => {
+            if (!isInputFocused && !isEyesClosed && !isCovering && !isPeeking && !isHappySuccess) {
+              updateMouseGaze(lastMouseX, lastMouseY);
+            }
+          }, 200);
+        }
+      }
+
+      // Pasang listener mouse move pada window (di-throttle 60fps via requestAnimationFrame)
+      if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+        window.addEventListener('mousemove', handleMouseMove, { passive: true });
+      }
+
+      // Listener mouseleave agar robot rileks ke posisi tengah saat kursor keluar jendela
+      if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+        document.addEventListener('mouseleave', () => {
+          if (!isInputFocused && !isEyesClosed && !isCovering && !isPeeking && !isHappySuccess) {
+            const upperBodyTarget = getUpperBodyTarget();
+            if (typeof gsap !== 'undefined') {
+              gsap.to(['#pupilLeft', '#pupilRight'], { x: 0, y: 0, duration: 0.45, ease: 'power2.out', overwrite: 'auto' });
+              gsap.to('#mascotHead', { rotation: 0, y: 0, transformOrigin: '120px 96px', duration: 0.45, ease: 'power2.out', overwrite: 'auto' });
+              gsap.to(upperBodyTarget, { x: 0, y: 0, rotation: 0, transformOrigin: '120px 216px', duration: 0.45, ease: 'power2.out', overwrite: 'auto' });
+              gsap.to('#neckJoint', { x: 0, rotation: 0, transformOrigin: '120px 158px', duration: 0.45, ease: 'power2.out', overwrite: 'auto' });
+              const ant = document.getElementById('mascotAntenna');
+              if (ant) {
+                gsap.to(ant, {
+                  rotation: 0,
+                  transformOrigin: '120px 38px',
+                  duration: 0.45,
+                  ease: 'power2.out',
+                  overwrite: 'auto',
+                  onComplete: resumeAntennaIdleWobble
+                });
+              }
+            } else {
+              const pl = document.getElementById('pupilLeft');
+              const pr = document.getElementById('pupilRight');
+              const hd = document.getElementById('mascotHead');
+              const ub = document.getElementById('upperBodyChassis') || document.getElementById('roboTorso');
+              const nk = document.getElementById('neckJoint');
+              if (pl && pl.style) { pl.style.x = 0; pl.style.y = 0; pl.style.transform = 'none'; }
+              if (pr && pr.style) { pr.style.x = 0; pr.style.y = 0; pr.style.transform = 'none'; }
+              if (hd && hd.style) { hd.style.rotation = 0; hd.style.y = 0; hd.style.transform = 'none'; }
+              if (ub && ub.style) { ub.style.rotation = 0; ub.style.x = 0; ub.style.transform = 'none'; }
+              if (nk && nk.style) { nk.style.rotation = 0; nk.style.x = 0; nk.style.transform = 'none'; }
+            }
+          }
+        }, { passive: true });
+      }
+
+      if (loginEmail) {
+        loginEmail.addEventListener('input', (e) => handleEmailInput(e.target.value));
+        loginEmail.addEventListener('focus', handleEmailFocus);
+        loginEmail.addEventListener('blur', handleEmailBlur);
+      }
+      if (regNama) {
+        regNama.addEventListener('input', (e) => handleEmailInput(e.target.value));
+        regNama.addEventListener('focus', handleEmailFocus);
+        regNama.addEventListener('blur', handleEmailBlur);
+      }
+      if (regEmail) {
+        regEmail.addEventListener('input', (e) => handleEmailInput(e.target.value));
+        regEmail.addEventListener('focus', handleEmailFocus);
+        regEmail.addEventListener('blur', handleEmailBlur);
+      }
+
+      if (loginPassword) {
+        loginPassword.addEventListener('focus', handlePasswordFocus);
+        loginPassword.addEventListener('input', handlePasswordInput);
+        loginPassword.addEventListener('blur', handlePasswordBlur);
+      }
+      if (regPassword) {
+        regPassword.addEventListener('focus', handlePasswordFocus);
+        regPassword.addEventListener('input', handlePasswordInput);
+        regPassword.addEventListener('blur', handlePasswordBlur);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', initRoboNesasMascot);
+    setTimeout(initRoboNesasMascot, 200);
+
+    // ===== 4. SWITCH AUTH TAB (MASUK VS DAFTAR) =====
+    let currentAuthTab = 'login';
+    let isTabSwitching = false;
+    let switchSafetyTimer = null;
+
+    // Reaksi Robot Maskot saat pergantian tab (Double Blink, Micro-Nod, Greeting)
+    function triggerTabSwitchMascotReaction(mode) {
+      if (typeof isEyesClosed !== 'undefined' && (isEyesClosed || isCovering || isPeeking || isHappySuccess)) {
+        return;
+      }
+
+      if (typeof gsap !== 'undefined') {
+        // 1. Double micro-blink pada kedua pupil mata
+        gsap.timeline()
+          .to(['#pupilLeft', '#pupilRight'], { scaleY: 0.1, transformOrigin: 'center center', duration: 0.08, ease: 'power1.in' })
+          .to(['#pupilLeft', '#pupilRight'], { scaleY: 1, transformOrigin: 'center center', duration: 0.1, ease: 'power1.out' })
+          .to(['#pupilLeft', '#pupilRight'], { scaleY: 0.1, transformOrigin: 'center center', duration: 0.08, delay: 0.05, ease: 'power1.in' })
+          .to(['#pupilLeft', '#pupilRight'], { scaleY: 1, transformOrigin: 'center center', duration: 0.12, ease: 'power1.out' });
+
+        // 2. Anggukan / tilt ramah kepala robot (#mascotHead)
+        gsap.timeline({ defaults: { overwrite: 'auto' } })
+          .to('#mascotHead', { y: 3.5, rotation: mode === 'register' ? 2.5 : -1.5, transformOrigin: '120px 96px', duration: 0.18, ease: 'power2.out' })
+          .to('#mascotHead', { y: 0, rotation: 0, transformOrigin: '120px 96px', duration: 0.28, ease: 'back.out(1.6)' });
+
+        // 3. Pulse lembut lampu antena beacon
+        gsap.to('#antennaLight', { scale: 1.35, transformOrigin: '120px 18px', duration: 0.15, yoyo: true, repeat: 1, overwrite: 'auto' });
+      } else {
+        const hd = document.getElementById('mascotHead');
+        if (hd && hd.style) {
+          hd.style.transform = 'translateY(2px)';
+          setTimeout(() => { if (hd && hd.style) hd.style.transform = 'none'; }, 200);
+        }
+      }
+
+      if (typeof setMascotStatus === 'function') {
+        const greeting = (mode === 'register')
+          ? 'Robo-NESAS • Selamat Datang Calon Siswa Baru!'
+          : 'Robo-NESAS • Selamat Datang Kembali!';
+        setMascotStatus(greeting, mode === 'register' ? '#10b981' : '#38bdf8');
+        if (mascotGreetingTimer) {
+          clearTimeout(mascotGreetingTimer);
+        }
+        mascotGreetingTimer = setTimeout(() => {
+          if (!isEyesClosed && !isCovering && !isPeeking && !isHappySuccess && !isInputFocused) {
+            setMascotStatus('Robo-NESAS • Siap Mengawasi Presensi', '#38bdf8');
+          }
+        }, 2200);
+      }
+    }
+
+    function switchAuthTab(mode) {
+      if (mode === currentAuthTab) return;
+      if (isTabSwitching) return;
+      isTabSwitching = true;
+      currentAuthTab = mode;
+
+      if (switchSafetyTimer) clearTimeout(switchSafetyTimer);
+      switchSafetyTimer = setTimeout(() => {
+        isTabSwitching = false;
+      }, 600);
+
+      bersihkanNotif('notifBoxLogin');
+      bersihkanNotif('notifBoxRegister');
+      const tabLogin = document.getElementById('tabBtnLogin');
+      const tabReg = document.getElementById('tabBtnRegister');
+      const glider = document.getElementById('authTabGlider');
+      const formLogin = document.getElementById('formLogin');
+      const formReg = document.getElementById('formRegister');
+      const btnGoogleLogin = document.getElementById('btnGoogleLogin');
+      const btnGoogleRegister = document.getElementById('btnGoogleRegister');
+      const heading = document.getElementById('authPortalHeading');
+      const subtitle = document.getElementById('authPortalSubtitle');
+      const footerSwitch = document.getElementById('authFooterSwitch');
+
+      if (typeof openEyes === 'function') openEyes();
+
+      // Glider & Tab Buttons state
+      if (mode === 'register') {
+        if (glider) glider.classList.add('register-mode');
+        if (tabLogin) tabLogin.classList.remove('active');
+        if (tabReg) tabReg.classList.add('active');
+        if (footerSwitch) footerSwitch.innerHTML = `Sudah punya akun? <a href="javascript:void(0)" onclick="switchAuthTab('login')">Masuk ke akun</a>`;
+      } else {
+        if (glider) glider.classList.remove('register-mode');
+        if (tabReg) tabReg.classList.remove('active');
+        if (tabLogin) tabLogin.classList.add('active');
+        if (footerSwitch) footerSwitch.innerHTML = `Belum punya akun? <a href="javascript:void(0)" onclick="switchAuthTab('register')">Daftar akun di sini</a>`;
+      }
+
+      // Reaksi Maskot Robot Robo-NESAS
+      triggerTabSwitchMascotReaction(mode);
+
+      const outgoingForm = (mode === 'register') ? formLogin : formReg;
+      const incomingForm = (mode === 'register') ? formReg : formLogin;
+      const outgoingGoogle = (mode === 'register') ? btnGoogleLogin : btnGoogleRegister;
+      const incomingGoogle = (mode === 'register') ? btnGoogleRegister : btnGoogleLogin;
+      const outX = (mode === 'register') ? -28 : 28;
+      const inX = (mode === 'register') ? 28 : -28;
+
+      if (typeof gsap !== 'undefined') {
+        // Kill active tweens on all auth interactive elements
+        gsap.killTweensOf([heading, subtitle, formLogin, formReg, btnGoogleLogin, btnGoogleRegister]);
+        if (outgoingForm) {
+          const oldCascade = outgoingForm.querySelectorAll('.auth-input-group, .btn-card-submit');
+          if (oldCascade.length > 0) gsap.killTweensOf(oldCascade);
+        }
+
+        // Heading & Subtitle soft crossfade
+        gsap.to([heading, subtitle], {
+          opacity: 0,
+          y: -4,
+          duration: 0.12,
+          ease: 'power1.in',
+          onComplete: () => {
+            if (mode === 'register') {
+              if (heading) heading.textContent = 'Buat Akun Baru';
+              if (subtitle) subtitle.textContent = 'Silakan lengkapi data diri Anda untuk mulai mencatat kehadiran harian.';
+            } else {
+              if (heading) heading.textContent = 'Halo, Selamat Datang!';
+              if (subtitle) subtitle.textContent = 'Silakan masuk menggunakan email sekolah atau akun Google Anda untuk melanjutkan presensi.';
+            }
+            gsap.to([heading, subtitle], {
+              opacity: 1,
+              y: 0,
+              duration: 0.22,
+              ease: 'power2.out',
+              clearProps: 'transform,opacity'
+            });
+          }
+        });
+
+        // Outgoing form & Google button slide-out and fade-out
+        gsap.to([outgoingForm, outgoingGoogle], {
+          opacity: 0,
+          x: outX,
+          duration: 0.16,
+          ease: 'power2.in',
+          onComplete: () => {
+            if (outgoingForm) {
+              outgoingForm.style.display = 'none';
+              outgoingForm.style.transform = '';
+              outgoingForm.style.opacity = '0';
+            }
+            if (outgoingGoogle) {
+              outgoingGoogle.style.display = 'none';
+              outgoingGoogle.style.transform = '';
+              outgoingGoogle.style.opacity = '0';
+            }
+
+            // Setup incoming elements
+            if (incomingGoogle) {
+              incomingGoogle.style.display = 'flex';
+              incomingGoogle.style.opacity = '0';
+              incomingGoogle.style.transform = 'translateY(-8px)';
+            }
+            if (incomingForm) {
+              incomingForm.style.display = 'block';
+              incomingForm.style.opacity = '0';
+              incomingForm.style.transform = `translateX(${inX}px)`;
+            }
+
+            // Animate incoming Google button
+            if (incomingGoogle) {
+              gsap.to(incomingGoogle, {
+                opacity: 1,
+                y: 0,
+                duration: 0.25,
+                ease: 'power2.out',
+                clearProps: 'transform,opacity'
+              });
+            }
+
+            // Animate incoming form container (horizontal slide-in)
+            if (incomingForm) {
+              gsap.to(incomingForm, {
+                opacity: 1,
+                x: 0,
+                duration: 0.32,
+                ease: 'power2.out',
+                clearProps: 'transform,opacity'
+              });
+
+              // Staggered cascade for child input groups & submit button
+              const cascadeElements = incomingForm.querySelectorAll('.auth-input-group, .btn-card-submit');
+              if (cascadeElements && cascadeElements.length > 0) {
+                gsap.fromTo(cascadeElements,
+                  { opacity: 0, y: 12 },
+                  {
+                    opacity: 1,
+                    y: 0,
+                    duration: 0.28,
+                    stagger: 0.05,
+                    ease: 'power2.out',
+                    clearProps: 'transform,opacity',
+                    onComplete: () => {
+                      if (switchSafetyTimer) clearTimeout(switchSafetyTimer);
+                      isTabSwitching = false;
+                    }
+                  }
+                );
+              } else {
+                if (switchSafetyTimer) clearTimeout(switchSafetyTimer);
+                isTabSwitching = false;
+              }
+            } else {
+              if (switchSafetyTimer) clearTimeout(switchSafetyTimer);
+              isTabSwitching = false;
+            }
+          }
+        });
+      } else {
+        // Fallback without GSAP
+        if (mode === 'register') {
+          if (heading) heading.textContent = 'Buat Akun Baru';
+          if (subtitle) subtitle.textContent = 'Silakan lengkapi data diri Anda untuk mulai mencatat kehadiran harian.';
+          if (formLogin) { formLogin.style.display = 'none'; formLogin.style.opacity = '1'; formLogin.style.transform = 'none'; }
+          if (formReg) { formReg.style.display = 'block'; formReg.style.opacity = '1'; formReg.style.transform = 'none'; }
+          if (btnGoogleLogin) { btnGoogleLogin.style.display = 'none'; btnGoogleLogin.style.opacity = '1'; btnGoogleLogin.style.transform = 'none'; }
+          if (btnGoogleRegister) { btnGoogleRegister.style.display = 'flex'; btnGoogleRegister.style.opacity = '1'; btnGoogleRegister.style.transform = 'none'; }
+        } else {
+          if (heading) heading.textContent = 'Halo, Selamat Datang!';
+          if (subtitle) subtitle.textContent = 'Silakan masuk menggunakan email sekolah atau akun Google Anda untuk melanjutkan presensi.';
+          if (formReg) { formReg.style.display = 'none'; formReg.style.opacity = '1'; formReg.style.transform = 'none'; }
+          if (formLogin) { formLogin.style.display = 'block'; formLogin.style.opacity = '1'; formLogin.style.transform = 'none'; }
+          if (btnGoogleRegister) { btnGoogleRegister.style.display = 'none'; btnGoogleRegister.style.opacity = '1'; btnGoogleRegister.style.transform = 'none'; }
+          if (btnGoogleLogin) { btnGoogleLogin.style.display = 'flex'; btnGoogleLogin.style.opacity = '1'; btnGoogleLogin.style.transform = 'none'; }
+        }
+        if (switchSafetyTimer) clearTimeout(switchSafetyTimer);
+        isTabSwitching = false;
+      }
+    }
+
+    // Toggle Password Visibility Helper with Peeking Integration
+    function togglePassword(inputId, btn) {
+      if (mascotBlurTimer) {
+        clearTimeout(mascotBlurTimer);
+        mascotBlurTimer = null;
+      }
+      const inp = document.getElementById(inputId);
+      if (!inp) return;
+      const isPass = inp.type === 'password';
+      inp.type = isPass ? 'text' : 'password';
+
+      // Trigger mascot peeking when visible, closed when hidden
+      peekEyes(isPass);
+
+      try {
+        inp.focus();
+      } catch (e) {}
+
+      if (btn) {
+        if (isPass) {
+          btn.setAttribute('aria-label', 'Sembunyikan kata sandi');
+          btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+            <line x1="1" y1="1" x2="23" y2="23"></line>
+          </svg>`;
+        } else {
+          btn.setAttribute('aria-label', 'Lihat kata sandi');
+          btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>`;
+        }
+      }
+    }
+
+    // Modal Pemulihan Kata Sandi
+    function bukaModalLupaPassword() {
+      if (typeof openEyes === 'function') openEyes();
+      const emailField = document.getElementById('loginEmail');
+      const resetEmailField = document.getElementById('resetEmail');
+      if (emailField && resetEmailField && emailField.value.trim()) {
+        resetEmailField.value = emailField.value.trim();
+      }
+      const b = document.getElementById('resetNotifBox');
+      if (b) { b.style.display = 'none'; b.textContent = ''; }
+      document.getElementById('modalLupaPassword').style.display = 'flex';
+    }
+
+    function tutupModalLupaPassword() {
+      document.getElementById('modalLupaPassword').style.display = 'none';
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        const m = document.getElementById('modalLupaPassword');
+        if (m && m.style.display !== 'none') {
+          tutupModalLupaPassword();
+        }
+      }
+    });
+
+    async function handleKirimResetPassword(e) {
+      e.preventDefault();
+      const email = document.getElementById('resetEmail').value.trim();
+      const notif = document.getElementById('resetNotifBox');
+      const btn = document.getElementById('btnKirimReset');
+
+      btn.disabled = true;
+      btn.textContent = 'Mengirim Tautan...';
+      try {
+        const res = await kirimResetPassword(email);
+        notif.style.display = 'block';
+        notif.className = 'toast-alert success';
+        if (res && res.isOffline) {
+          const userNama = res.user && (res.user.nama || res.user.displayName) ? ' (' + (res.user.nama || res.user.displayName) + ')' : '';
+          notif.textContent = 'Permintaan pemulihan diproses untuk ' + email + userNama + '. Akun Anda terverifikasi di sistem sekolah. Periksa email atau hubungi admin jika butuh reset instan.';
+        } else {
+          notif.textContent = 'Link pemulihan kata sandi telah dikirim ke ' + email + '. Cek kotak masuk / spam di Gmail Anda.';
+        }
+        btn.textContent = 'Terkirim ✓';
+        setTimeout(() => {
+          tutupModalLupaPassword();
+          btn.disabled = false;
+          btn.textContent = 'Kirim Link Pemulihan';
+        }, 3500);
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Kirim Link Pemulihan';
+        notif.style.display = 'block';
+        notif.className = 'toast-alert error';
+        if (err.code === 'auth/user-not-found') {
+          notif.textContent = 'Email belum terdaftar di sistem presensi.';
+        } else if (err.code === 'auth/invalid-email') {
+          notif.textContent = 'Format email tidak valid.';
+        } else if (err.code === 'auth/network-request-failed') {
+          notif.textContent = 'Koneksi jaringan terganggu. Silakan periksa koneksi internet Anda.';
+        } else {
+          notif.textContent = err.message || 'Gagal mengirim link pemulihan.';
+        }
+      }
+    }
+
+    // Notifikasi & Loading Feedback Helpers
+    function tampilNotif(boxId, pesan, tipe) {
+      const b = document.getElementById(boxId);
+      if (!b) return;
+      if (typeof pesan === 'string' && (pesan.includes('<') || pesan.includes('&'))) {
+        b.innerHTML = pesan;
+      } else {
+        b.textContent = pesan;
+      }
+      b.className = 'toast-alert ' + tipe;
+    }
+
+    function bersihkanNotif(boxId) {
+      const b = document.getElementById(boxId);
+      if (!b) return;
+      b.textContent = '';
+      b.className = 'toast-alert';
+    }
+
+    function loading(show, text = 'Memproses...') {
+      const l = document.getElementById('loadingBox');
+      document.getElementById('loadingCaption').textContent = text;
+      if (show) l.classList.add('show'); else l.classList.remove('show');
+    }
+
+    // Auth Success Modal with GSAP Animation & Happy Mascot Eyes
+    function showAuthSuccessModal(title, message, onDone) {
+      triggerHappyEyes();
+      const overlay = document.getElementById('authSuccessOverlay');
+      const titleEl = document.getElementById('authSuccessTitle');
+      const descEl = document.getElementById('authSuccessDesc');
+      const barEl = document.getElementById('authSuccessProgressBar');
+
+      if (!overlay) {
+        if (typeof onDone === 'function') onDone();
+        return;
+      }
+
+      if (titleEl) titleEl.textContent = title || 'Autentikasi Berhasil!';
+      if (descEl) descEl.textContent = message || 'Menyiapkan Portal Presensi...';
+      if (barEl) barEl.style.width = '0%';
+
+      overlay.classList.add('active');
+
+      if (typeof gsap !== 'undefined' && barEl) {
+        gsap.to(barEl, {
+          width: '100%',
+          duration: 1.1,
+          ease: 'power2.inOut',
+          onComplete: () => {
+            setTimeout(() => {
+              overlay.classList.remove('active');
+              if (typeof onDone === 'function') onDone();
+            }, 180);
+          }
+        });
+      } else {
+        setTimeout(() => {
+          overlay.classList.remove('active');
+          if (typeof onDone === 'function') onDone();
+        }, 1100);
+      }
+    }
+
+    // ===== 5. STRICT ISOLASI & SESSION SANITATION =====
+    // Fresh visitors, guests, and unauthenticated users STAY on index.html
+    // ISOLASI KETAT ADMIN: index.html TIDAK PERNAH mengarahkan ke dashboard admin (admin.html)
+    const userSession = getSessionUser();
+    if (userSession && userSession.role === 'admin') {
+      try { localStorage.removeItem('user_aktif'); } catch (e) {}
+      try { sessionStorage.removeItem('user_aktif'); } catch (e) {}
+    }
+
+    if (typeof firebase !== 'undefined' && firebase.auth) {
+      firebase.auth().onAuthStateChanged(function(fbUser) {
+        if (fbUser && typeof isEmailAdmin === 'function' && isEmailAdmin(fbUser.email)) {
+          firebase.auth().signOut().catch(() => null);
+          clearSession();
+        }
+      });
+
+      if (firebase.auth().getRedirectResult) {
+        firebase.auth().getRedirectResult().then(async function(result) {
+          if (result && result.user) {
+            const userData = await prosesLoginUser(result.user);
+            if (userData && (userData.role === 'admin' || (typeof isEmailAdmin === 'function' && isEmailAdmin(userData.email)))) {
+              await firebase.auth().signOut().catch(() => null);
+              clearSession();
+              tampilNotif('notifBoxLogin', 'Akses Ditolak: Akun Administrator memiliki portal login khusus di admin-login.html. Anda tidak dapat masuk ke dashboard admin melalui portal siswa ini.', 'error');
+              return;
+            }
+            const targetUrl = ((userData.role === 'guru' || userData.role === 'walas') && (!userData.nip || !userData.isVerified))
+              ? 'dashboard.html'
+              : getDashboardUrlByRole(userData.role);
+            if (targetUrl === 'admin.html') {
+              await firebase.auth().signOut().catch(() => null);
+              clearSession();
+              tampilNotif('notifBoxLogin', 'Akses Ditolak: Akun Administrator memiliki portal login khusus di admin-login.html.', 'error');
+              return;
+            }
+            showAuthSuccessModal('Autentikasi Berhasil!', 'Menyiapkan Portal Presensi...', () => {
+              window.location.href = targetUrl;
+            });
+          }
+        }).catch(function() {});
+      }
+    }
+
+    // ===== 6. LOGIN DENGAN GOOGLE =====
+    async function handleGoogleLogin() {
+      bersihkanNotif('notifBoxLogin');
+      bersihkanNotif('notifBoxRegister');
+      const isReg = document.getElementById('formRegister') && document.getElementById('formRegister').style.display !== 'none';
+      const notifTarget = isReg ? 'notifBoxRegister' : 'notifBoxLogin';
+
+      const btnGoogleLogin = document.getElementById('btnGoogleLogin');
+      const btnGoogleRegister = document.getElementById('btnGoogleRegister');
+      const activeBtnGoogle = isReg ? (btnGoogleRegister || btnGoogleLogin) : btnGoogleLogin;
+      const origBtnContent = activeBtnGoogle ? activeBtnGoogle.innerHTML : '';
+      if (activeBtnGoogle) {
+        activeBtnGoogle.disabled = true;
+        activeBtnGoogle.innerHTML = '<span>⏳ Menghubungkan akun Google...</span>';
+      }
+
+      function restoreGoogleBtn() {
+        if (activeBtnGoogle) {
+          activeBtnGoogle.disabled = false;
+          activeBtnGoogle.innerHTML = origBtnContent;
+        }
+      }
+
+      try {
+        const result = await loginDenganGoogle();
+        loading(true, 'Menyiapkan Portal Presensi...');
+        const userData = await prosesLoginUser(result.user);
+
+        // ISOLASI KETAT ADMIN: Akun Administrator DILARANG login dari portal siswa (index.html)
+        if (userData && (userData.role === 'admin' || (typeof isEmailAdmin === 'function' && isEmailAdmin(userData.email)))) {
+          await firebase.auth().signOut().catch(() => null);
+          clearSession();
+          loading(false);
+          restoreGoogleBtn();
+          tampilNotif(notifTarget, 'Akses Ditolak: Akun Administrator memiliki portal login khusus di admin-login.html. Anda tidak dapat masuk ke dashboard admin melalui portal siswa ini.', 'error');
+          return;
+        }
+
+        const targetUrl = ((userData.role === 'guru' || userData.role === 'walas') && (!userData.nip || !userData.isVerified))
+          ? 'dashboard.html'
+          : getDashboardUrlByRole(userData.role);
+
+        if (targetUrl === 'admin.html') {
+          await firebase.auth().signOut().catch(() => null);
+          clearSession();
+          loading(false);
+          restoreGoogleBtn();
+          tampilNotif(notifTarget, 'Akses Ditolak: Akun Administrator memiliki portal login khusus di admin-login.html. Anda tidak dapat masuk ke dashboard admin melalui portal siswa ini.', 'error');
+          return;
+        }
+
+        loading(false);
+        showAuthSuccessModal('Autentikasi Berhasil!', 'Menyiapkan Portal Presensi...', () => {
+          window.location.href = targetUrl;
+        });
+      } catch (e) {
+        loading(false);
+        restoreGoogleBtn();
+
+        if (e.code === 'auth/unauthorized-domain') {
+          tampilNotif(notifTarget, 'Harap tambahkan domain lokal ke Firebase Console -> Auth -> Authorized domains.', 'error');
+        } else if (e.code === 'auth/popup-closed-by-user') {
+          tampilNotif(notifTarget, 'Login dibatalkan.', 'error');
+        } else if (e.code === 'auth/popup-blocked' || e.code === 'auth/cancelled-popup-request' || (e.message && (e.message.includes('popup-blocked') || e.message.includes('cancelled-popup-request')))) {
+          if (window.location.protocol !== 'file:' && typeof firebase !== 'undefined' && firebase.auth && firebase.auth().signInWithRedirect) {
+            try {
+              const provider = new firebase.auth.GoogleAuthProvider();
+              provider.setCustomParameters({ prompt: 'select_account' });
+              await firebase.auth().signInWithRedirect(provider);
+              return;
+            } catch (errRedir) {}
+          }
+
+          let pesan = '⚠️ Jendela pop-up Google diblokir oleh peramban browser.<br>';
+          pesan += '• Harap izinkan pop-up pada ikon peramban di bilah alamat Anda, atau silakan login menggunakan formulir Email di bawah.';
+          tampilNotif(notifTarget, pesan, 'error');
+        } else if (e.code === 'auth/network-request-failed' || (e.message && e.message.includes('network-request-failed'))) {
+          const isFile = (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:');
+          let pesan = '⚠️ Gagal terhubung ke Google Auth (auth/network-request-failed).<br>';
+          if (isFile) {
+            pesan += '• Aplikasi dibuka via <code>file://</code> (tanpa web server). Firebase Google Auth mewajibkan origin HTTP/HTTPS. Jalankan via Live Server (misal <code>http://localhost:5500</code>) di editor Anda.<br>';
+          } else {
+            pesan += '• Gangguan koneksi internet atau kontak ke server Google OAuth diblokir firewall/jaringan.<br>';
+          }
+          pesan += '• Silakan masuk menggunakan formulir Email di bawah.';
+          tampilNotif(notifTarget, pesan, 'error');
+        } else {
+          tampilNotif(notifTarget, e.message || 'Gagal login Google.', 'error');
+        }
+      }
+    }
+
+    // ===== 7. LOGIN DENGAN EMAIL =====
+    async function handleLoginEmail(e) {
+      e.preventDefault();
+      bersihkanNotif('notifBoxLogin');
+      let email = document.getElementById('loginEmail').value.trim();
+      const pass = document.getElementById('loginPassword').value;
+
+      // Jika login menggunakan NISN murni, petakan ke format email internal terstandar (PRD Bab 4.3)
+      if (/^\d{8,12}$/.test(email)) {
+        email = `${email}@siswa.smkn1sumedang.sch.id`;
+      }
+
+      // Blokir email administrator dari form login biasa
+      if (typeof isEmailAdmin === 'function' && isEmailAdmin(email)) {
+        tampilNotif('notifBoxLogin', 'Akses Ditolak: Akun Administrator memiliki portal login khusus di admin-login.html. Anda tidak dapat masuk ke dashboard admin melalui portal siswa ini.', 'error');
+        return;
+      }
+
+      loading(true, 'Memverifikasi akun...');
+      try {
+        const fbUser = await loginDenganEmail(email, pass);
+        const userData = await prosesLoginUser(fbUser);
+
+        // ISOLASI KETAT ADMIN: Cegah eskalasi ke dashboard admin dari portal siswa
+        if (userData && (userData.role === 'admin' || (typeof isEmailAdmin === 'function' && isEmailAdmin(userData.email)))) {
+          await firebase.auth().signOut().catch(() => null);
+          clearSession();
+          loading(false);
+          tampilNotif('notifBoxLogin', 'Akses Ditolak: Akun Administrator memiliki portal login khusus di admin-login.html. Anda tidak dapat masuk ke dashboard admin melalui portal siswa ini.', 'error');
+          return;
+        }
+
+        const targetUrl = ((userData.role === 'guru' || userData.role === 'walas') && (!userData.nip || !userData.isVerified))
+          ? 'dashboard.html'
+          : getDashboardUrlByRole(userData.role);
+
+        if (targetUrl === 'admin.html') {
+          await firebase.auth().signOut().catch(() => null);
+          clearSession();
+          loading(false);
+          tampilNotif('notifBoxLogin', 'Akses Ditolak: Akun Administrator memiliki portal login khusus di admin-login.html. Anda tidak dapat masuk ke dashboard admin melalui portal siswa ini.', 'error');
+          return;
+        }
+
+        loading(false);
+        showAuthSuccessModal('Autentikasi Berhasil!', 'Menyiapkan Portal Presensi...', () => {
+          window.location.href = targetUrl;
+        });
+      } catch (err) {
+        loading(false);
+        if (err.code === 'auth/email-not-verified') {
+          tampilNotif('notifBoxLogin', 'Email belum diverifikasi. Cek kotak masuk atau spam di Gmail Anda.', 'error');
+        } else if (err.code === 'auth/operation-not-allowed') {
+          tampilNotif('notifBoxLogin', 'PENTING: Aktifkan Email/Password di Firebase Console -> Authentication -> Sign-in method.', 'error');
+        } else if (err.code === 'auth/network-request-failed' || (err.message && err.message.includes('network-request-failed'))) {
+          const isFile = (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:');
+          let pesan = '⚠️ Gangguan koneksi ke Firebase Auth (auth/network-request-failed).<br>';
+          if (isFile) {
+            pesan += '• Aplikasi dibuka via <code>file://</code>. Pastikan koneksi internet aktif atau jalankan via Live Server.<br>';
+          } else {
+            pesan += '• Koneksi internet terganggu atau server Google diblokir jaringan.<br>';
+          }
+          tampilNotif('notifBoxLogin', pesan, 'error');
+        } else {
+          tampilNotif('notifBoxLogin', 'Email atau kata sandi salah / belum terdaftar.', 'error');
+        }
+      }
+    }
+
+    // ===== 8. REGISTER DENGAN EMAIL =====
+    async function handleRegisterEmail(e) {
+      e.preventDefault();
+      bersihkanNotif('notifBoxRegister');
+      const nama = document.getElementById('regNama').value.trim();
+      const email = document.getElementById('regEmail').value.trim();
+      const pass = document.getElementById('regPassword').value;
+
+      if (typeof isEmailAdmin === 'function' && isEmailAdmin(email)) {
+        tampilNotif('notifBoxRegister', 'Pendaftaran akun Administrator tidak diperkenankan di portal siswa. Akses portal khusus di admin-login.html.', 'error');
+        return;
+      }
+
+      loading(true, 'Mendaftarkan akun...');
+      try {
+        const res = await registerDenganEmail(email, pass, nama);
+        loading(false);
+        if (res && res.isOfflineFallback) {
+          tampilNotif('notifBoxRegister', '✓ Pendaftaran Berhasil (Mode Offline/Lokal Aktif). Mengalihkan ke tab Masuk...', 'success');
+          showAuthSuccessModal('Pendaftaran Berhasil!', 'Akun Anda berhasil didaftarkan secara lokal. Mengalihkan ke formulir Masuk...', () => {
+            const loginEmailField = document.getElementById('loginEmail');
+            if (loginEmailField) loginEmailField.value = email;
+            document.getElementById('formRegister').reset();
+            switchAuthTab('login');
+          });
+        } else {
+          tampilNotif('notifBoxRegister', 'Link verifikasi telah dikirim ke ' + email + '. Buka Gmail Anda dan klik tautan verifikasi, lalu masuk.', 'success');
+          showAuthSuccessModal('Pendaftaran Berhasil!', 'Link verifikasi telah dikirim ke ' + email + '. Mengalihkan ke tab Masuk...', () => {
+            const loginEmailField = document.getElementById('loginEmail');
+            if (loginEmailField) loginEmailField.value = email;
+            document.getElementById('formRegister').reset();
+            switchAuthTab('login');
+          });
+        }
+      } catch (err) {
+        loading(false);
+        if (err.code === 'auth/operation-not-allowed') {
+          tampilNotif('notifBoxRegister', 'Harap aktifkan provider Email/Password di Firebase Console -> Auth -> Sign-in method.', 'error');
+        } else if (err.code === 'auth/email-already-in-use') {
+          tampilNotif('notifBoxRegister', 'Email ini sudah terdaftar. Silakan pilih Masuk.', 'error');
+        } else if (err.code === 'auth/network-request-failed' || (err.message && err.message.includes('network-request-failed'))) {
+          const isFile = (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:');
+          let pesan = '⚠️ Gagal terhubung ke server Firebase Auth (auth/network-request-failed).<br>';
+          if (isFile) {
+            pesan += '• Aplikasi dibuka via <code>file://</code> tanpa local web server. Silakan buka melalui Live Server atau langsung Masuk jika Anda siswa terdaftar.<br>';
+          } else {
+            pesan += '• Koneksi internet terganggu atau server Google diblokir jaringan.<br>';
+          }
+          pesan += '• Jika Anda siswa resmi (contoh: <code>zemapk15@gmail.com</code>), Anda dapat langsung Masuk di tab Masuk.';
+          tampilNotif('notifBoxRegister', pesan, 'error');
+        } else {
+          tampilNotif('notifBoxRegister', err.message || 'Gagal mendaftar.', 'error');
+        }
+      }
+    }
+  </script>
+</body>
+</html>

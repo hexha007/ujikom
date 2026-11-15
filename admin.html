@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel Admin — Presensi Siswa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/admin.css?v=20261104_1400">
+<link rel="stylesheet" href="assets/chat-hub.css?v=20261029_06">
+<link rel="stylesheet" href="assets/ceklis-popup.css?v=20261029_08">
+<style>
+  :root {
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-heading: 'Space Grotesk', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+  * { font-family: var(--font-sans); }
+  h1, h2, h3, h4, .admin-brand strong, .sidebar-btn, .admin-stat-card strong, th { font-family: var(--font-heading); }
+  .mono, code, pre { font-family: var(--font-mono); }
+</style>
+</head>
+<body>
+<!-- GLASSMORPHISM SPINNER LOADER -->
+<div id="glassLoader" class="glass-loader-overlay">
+  <div class="glass-loader-spinner">
+    <div class="glass-loader-ring-outer"></div>
+    <div class="glass-loader-ring-inner"></div>
+    <div class="glass-loader-core"></div>
+  </div>
+  <div class="glass-loader-text">Memuat Panel Admin...</div>
+  <div class="glass-loader-subtext">Menghubungkan ke Realtime Database IoT...</div>
+</div>
+
+<div class="admin-wrap">
+  <!-- APP BAR -->
+  <div class="admin-appbar">
+    <div class="admin-brand">
+      <div class="admin-brand-icon" style="width:44px;height:44px;border-radius:50%;overflow:hidden;border:2px solid #38bdf8;box-shadow:0 6px 16px -2px rgba(2,132,199,0.35);flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#0f172a;position:relative;">
+        <img src="assets/foto/admin.jpg" alt="Foto Profil Admin" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.src='assets/foto/0095250998.jpg';">
+        <!-- SVG Defs preserved for gradient asset compatibility -->
+        <svg width="0" height="0" style="position:absolute;visibility:hidden;width:0;height:0;" aria-hidden="true">
+          <defs>
+            <linearGradient id="shieldGrad" x1="4" y1="4" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#38bdf8"/>
+              <stop offset="50%" stop-color="#818cf8"/>
+              <stop offset="100%" stop-color="#c084fc"/>
+            </linearGradient>
+            <linearGradient id="coreGrad" x1="12" y1="12" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#ffffff"/>
+              <stop offset="100%" stop-color="#bae6fd"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <div class="admin-brand-text">
+        <small style="color:#0284c7;font-weight:800;letter-spacing:0.06em;" title="Administrator SMKN 1 Sumedang">SMKN 1 SUMEDANG</small>
+        <strong style="background:linear-gradient(90deg, #0f172a 0%, #334155 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Panel Admin</strong>
+      </div>
+    </div>
+    <div class="admin-appbar-right">
+      <button class="btn-nav" onclick="bukaModalProfil()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+        </svg>
+        <span>Profil</span>
+      </button>
+      <button id="logoutBtn" class="btn-logout-admin">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+        <span>Keluar</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- NOTIF PENDING BANNER -->
+  <div class="notif-pending-bar" id="notifPerijinanBanner">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+    </svg>
+    <span>Ada perijinan yang belum direspon!</span>
+    <span class="notif-count" id="jumlahPending">0</span>
+    <a onclick="switchToTab('perijinan')">Lihat sekarang &rarr;</a>
+  </div>
+
+  <!-- LAYOUT SIDEBAR + KONTEN -->
+  <div class="admin-layout">
+
+    <!-- SIDEBAR NAVIGASI -->
+    <nav class="admin-sidebar">
+      <div class="sidebar-section-label">OPERASIONAL PRESENSI</div>
+      <button class="sidebar-btn active" data-tab="perijinan" onclick="switchToTab('perijinan')">
+        <span class="icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/>
+          </svg>
+        </span>
+        <span class="label">Perizinan</span>
+        <span class="badge" id="badgePerijinan" style="display:none">0</span>
+      </button>
+      <button class="sidebar-btn" data-tab="kendala" onclick="switchToTab('kendala')">
+        <span class="icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </span>
+        <span class="label">Kendala Guru</span>
+        <span class="badge" id="badgeKendalaGuru" style="display:none;background:#ef4444;">0</span>
+      </button>
+      <button class="sidebar-btn" data-tab="monitoring3kelas" onclick="switchToTab('monitoring3kelas')">
+        <span class="icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>
+          </svg>
+        </span>
+        <span class="label">Kehadiran</span>
+      </button>
+      <button class="sidebar-btn" data-tab="presensi" onclick="switchToTab('presensi')">
+        <span class="icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+          </svg>
+        </span>
+        <span class="label">Presensi Manual</span>
+      </button>
+      <button class="sidebar-btn" data-tab="rekap" onclick="switchToTab('rekap')">
+        <span class="icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+        </span>
+        <span class="label">Rekap Presensi</span>
+      </button>
+      <button class="sidebar-btn" data-tab="siswa" onclick="switchToTab('siswa')">
+        <span class="icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
+          </svg>
+        </span>
+        <span class="label">Data Siswa</span>
+      </button>
+      <button class="sidebar-btn" data-tab="kartu" onclick="switchToTab('kartu')">
+        <span class="icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+          </svg>
+        </span>
+        <span class="label">Kartu RFID</span>
+      </button>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section-label">DATA MASTER & KARTU</div>
+      <button class="sidebar-btn" data-tab="jadwal" onclick="switchToTab('jadwal')">
+        <span class="icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </span>
+        <span class="label">Jam Pulang</span>
+      </button>
+      <button class="sidebar-btn" data-tab="pelajaran" onclick="switchToTab('pelajaran')">
+        <span class="icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+          </svg>
+        </span>
+        <span class="label">Jadwal Pelajaran</span>
+      </button>
+      <button class="sidebar-btn" data-tab="guru" onclick="switchToTab('guru')">
+        <span class="icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </span>
+        <span class="label">Data Guru & Akun</span>
+      </button>
+    </nav>
+
+    <!-- KONTEN UTAMA -->
+    <div class="admin-content">
+
+      <!-- ===== PERIJINAN MASUK ===== -->
+      <div id="tab-perijinan" class="tab-panel active">
+        <div class="content-header">
+          <h2>Perizinan Masuk</h2>
+          <p>Daftar permohonan izin dan sakit yang diajukan siswa dan guru.</p>
+        </div>
+        <div class="filter-bar">
+          <button class="filter-btn active" data-filter="pending" onclick="setFilterPerijinan(this)">Menunggu</button>
+          <button class="filter-btn" data-filter="disetujui" onclick="setFilterPerijinan(this)">Disetujui</button>
+          <button class="filter-btn" data-filter="ditolak" onclick="setFilterPerijinan(this)">Ditolak</button>
+          <button class="filter-btn" data-filter="semua" onclick="setFilterPerijinan(this)">Semua</button>
+
+        </div>
+        <div id="daftarPerijinanAdmin"></div>
+      </div>
+
+      <!-- ===== EDIT PRESENSI MANUAL ===== -->
+      <div id="tab-presensi" class="tab-panel">
+        <div class="content-header">
+          <h2>Presensi Manual</h2>
+          <p>Koreksi kehadiran siswa secara langsung jika kartu tertinggal atau ada kendala.</p>
+        </div>
+        <div class="admin-form-card">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Pilih Kelas</label>
+              <select id="presensiKelas">
+                <option value="XII RPL 1">XII RPL 1</option>
+                <option value="XII RPL 2">XII RPL 2</option>
+                <option value="XII TKJ 1">XII TKJ 1</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Tanggal</label>
+              <input type="date" id="presensiTanggal">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Jam Ke-</label>
+              <select id="presensiJamKe">
+                <option value="1">Jam ke-1</option>
+                <option value="2">Jam ke-2</option>
+                <option value="3">Jam ke-3</option>
+                <option value="4">Jam ke-4</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Pilih Siswa</label>
+              <select id="presensiSiswa"></select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Status Baru</label>
+              <select id="presensiStatus">
+                <option value="hadir">Hadir</option>
+                <option value="sakit">Sakit</option>
+                <option value="dispensasi">Dispensasi</option>
+                <option value="ijin_kegiatan">Izin Kegiatan</option>
+                <option value="alpha">Tanpa Keterangan</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn-primary" onclick="simpanPresensiManual()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span>Simpan Perubahan</span></button>
+          </div>
+          <div class="msg" id="presensiManualMsg"></div>
+        </div>
+      </div>
+
+      <!-- ===== REKAP & LAPORAN PRESENSI ===== -->
+      <div id="tab-rekap" class="tab-panel">
+        <div class="content-header">
+          <h2>Rekap & Laporan Presensi</h2>
+          <p>Tinjau rekapitulasi kehadiran siswa per kelas dan tanggal, cetak laporan resmi, atau ekspor ke file CSV/Excel.</p>
+        </div>
+        <div class="admin-form-card">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Pilih Kelas</label>
+              <select id="rekapKelas" onchange="muatRekapPresensi()">
+                <option value="XII RPL 1">XII RPL 1</option>
+                <option value="XII RPL 2">XII RPL 2</option>
+                <option value="XII TKJ 1">XII TKJ 1</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Periode Rekapitulasi</label>
+              <select id="rekapPeriodeAdmin" onchange="togglePeriodeAdmin()">
+                <option value="harian">Harian (Per Tanggal)</option>
+                <option value="tahunan">1 Tahun Terakhir (TA 2025/2026)</option>
+              </select>
+            </div>
+            <div class="form-group" id="groupRekapTanggal">
+              <label>Tanggal Presensi</label>
+              <input type="date" id="rekapTanggal" onchange="muatRekapPresensi()">
+            </div>
+          </div>
+          <div class="form-actions" style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn-primary" onclick="muatRekapPresensi()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><span>Tampilkan Rekap</span></button>
+            <button class="btn-secondary" onclick="cetakLaporanPresensi()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg><span>Cetak PDF</span></button>
+            <button class="btn-secondary" onclick="exportCsvPresensi()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>Export CSV</span></button>
+          </div>
+        </div>
+
+        <!-- STATS SUMMARY CARD -->
+        <div id="rekapSummaryCards" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:12px; margin-bottom:20px;">
+          <div style="background:#f8fafc; border:1px solid var(--border); border-radius:14px; padding:14px; text-align:center;">
+            <span style="font-size:11.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Total Siswa</span>
+            <h3 id="statTotalSiswa" style="font-size:22px; font-weight:800; color:var(--text); margin-top:4px;">0</h3>
+          </div>
+          <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:14px; padding:14px; text-align:center;">
+            <span style="font-size:11.5px; font-weight:700; color:#065f46; text-transform:uppercase;">Hadir</span>
+            <h3 id="statHadir" style="font-size:22px; font-weight:800; color:#059669; margin-top:4px;">0</h3>
+          </div>
+          <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:14px; padding:14px; text-align:center;">
+            <span style="font-size:11.5px; font-weight:700; color:#1e40af; text-transform:uppercase;">Sakit</span>
+            <h3 id="statSakit" style="font-size:22px; font-weight:800; color:#2563eb; margin-top:4px;">0</h3>
+          </div>
+          <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:14px; padding:14px; text-align:center;">
+            <span style="font-size:11.5px; font-weight:700; color:#92400e; text-transform:uppercase;">Izin / Disp</span>
+            <h3 id="statIzin" style="font-size:22px; font-weight:800; color:#d97706; margin-top:4px;">0</h3>
+          </div>
+          <div style="background:#fef2f2; border:1px solid #fecaca; border-radius:14px; padding:14px; text-align:center;">
+            <span style="font-size:11.5px; font-weight:700; color:#991b1b; text-transform:uppercase;">Tanpa Keterangan</span>
+            <h3 id="statAlpha" style="font-size:22px; font-weight:800; color:#dc2626; margin-top:4px;">0</h3>
+          </div>
+        </div>
+
+        <!-- KOP SURAT RESMI UNTUK CETAK LAPORAN -->
+        <div class="print-only kop-surat" id="kopSuratPrint">
+          <div class="kop-header">
+            <img src="assets/logo-nesas.png" alt="Logo Nesas SMKN 1 Sumedang" class="kop-logo">
+            <div class="kop-text">
+              <h4>PEMERINTAH DAERAH PROVINSI JAWA BARAT</h4>
+              <h4>DINAS PENDIDIKAN</h4>
+              <h3>CABANG DINAS PENDIDIKAN WILAYAH VIII</h3>
+              <h2>SMK NEGERI 1 SUMEDANG</h2>
+              <p class="kop-alamat">Jl. Mayor Abdurakhman No. 209 Telp./Fax (0261) 201777 Kotak Pos 35 Sumedang 45322</p>
+              <p class="kop-kontak">Website: www.smkn1sumedang.sch.id &bull; Pos-el: smkn1smd@gmail.com</p>
+            </div>
+            <img src="assets/logo-rpl.png" alt="Logo RPL" class="kop-logo kop-logo-rpl">
+          </div>
+          <div class="kop-divider-thick"></div>
+          <div class="kop-divider-thin"></div>
+          <div class="kop-judul-dokumen">
+            <h3>LAPORAN REKAPITULASI PRESENSI HARIAN RFID SISWA</h3>
+            <p id="printPeriodeInfo">Kelas: - | Tanggal: -</p>
+          </div>
+        </div>
+
+        <!-- TABEL REKAP -->
+        <div style="overflow-x:auto;">
+          <table class="data-table" id="tabelRekapCetak">
+            <thead>
+              <tr id="rekapTheadRow">
+                <th>No</th>
+                <th>NISN</th>
+                <th>Nama Siswa</th>
+                <th>Jam 1</th>
+                <th>Jam 2</th>
+                <th>Jam 3</th>
+                <th>Jam 4</th>
+                <th>Status Akhir</th>
+              </tr>
+            </thead>
+            <tbody id="rekapTableBody">
+              <tr><td colspan="8" class="empty-state"><div class="empty-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><p>Pilih kelas dan klik "Tampilkan Rekap" untuk memuat data.</p></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- TANDA TANGAN RESMI CETAK LAPORAN -->
+        <div class="print-only ttd-container" id="ttdContainerPrint">
+          <div class="ttd-box">
+            <p>Mengetahui,</p>
+            <p>Kepala SMK Negeri 1 Sumedang</p>
+            <div class="ttd-space"></div>
+            <p><strong>H. Dedi Junaedi, M.Pd.</strong></p>
+            <p>NIP. 19680512 199403 1 004</p>
+          </div>
+          <div class="ttd-box">
+            <p id="ttdTanggalPrint">Sumedang, -</p>
+            <p>Guru Pembimbing / Penguji UKK</p>
+            <div class="ttd-space"></div>
+            <p><strong>Rexx LostHer, S.Kom.</strong></p>
+            <p>NIP. - / Penguji Ahli RPL</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== DATA SISWA ===== -->
+      <div id="tab-siswa" class="tab-panel">
+        <div class="content-header">
+          <h2>Data Siswa</h2>
+          <p>Daftar dan manajemen data siswa sekolah.</p>
+        </div>
+        <div class="admin-form-card">
+          <h3 id="siswaFormTitle">Tambah Siswa</h3>
+          <input type="hidden" id="siswaEditingKey">
+          <div class="form-row">
+            <div class="form-group">
+              <label>NISN</label>
+              <input type="text" id="siswaNisn" placeholder="Contoh: 1234567890">
+            </div>
+            <div class="form-group">
+              <label>Nama Lengkap</label>
+              <input type="text" id="siswaNama" placeholder="Nama lengkap siswa">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Kelas</label>
+              <input type="text" id="siswaKelas" placeholder="Contoh: XII RPL 2">
+            </div>
+            <div class="form-group">
+              <label>Email Gmail (Opsional)</label>
+              <input type="email" id="siswaEmail" placeholder="email@gmail.com">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn-primary" id="siswaSubmitBtn" onclick="submitSiswa()">+ Tambah Siswa</button>
+            <button class="btn-secondary hidden" id="siswaCancelBtn" onclick="resetFormSiswa()">Batal</button>
+          </div>
+          <div class="msg" id="siswaMsg"></div>
+        </div>
+
+        <!-- PENCARIAN & FILTER DATA SISWA -->
+        <div style="margin:20px 0 14px 0; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div style="position:relative; flex:1; min-width:260px; max-width:420px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); pointer-events:none;">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" id="cariSiswaAdmin" oninput="filterDataSiswaAdminLive()" placeholder="Cari NISN, nama siswa, atau kelas..." style="width:100%; padding:9px 12px 9px 36px; border:1.5px solid #cbd5e1; border-radius:10px; font-size:13.5px; outline:none; background:#ffffff; color:#0f172a; font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+          </div>
+          <div style="font-size:13px; font-weight:700; color:#64748b; background:#f8fafc; border:1px solid #e2e8f0; padding:7px 14px; border-radius:8px;">
+            Total Ditampilkan: <span id="countSiswaAdmin" style="color:#0f172a; font-weight:800;">0</span> Siswa
+          </div>
+        </div>
+
+        <table class="data-table">
+          <thead><tr><th>NISN</th><th>Nama</th><th>Kelas</th><th>Email</th><th></th></tr></thead>
+          <tbody id="siswaTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- ===== KARTU NFC ===== -->
+      <div id="tab-kartu" class="tab-panel">
+        <div class="content-header">
+          <h2>Kartu RFID / NFC</h2>
+          <p>Penautan nomor kartu fisik RFID ke data siswa.</p>
+        </div>
+        <div class="admin-form-card">
+          <h3>Tautkan Kartu</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label>UID Kartu RFID</label>
+              <input type="text" id="kartuId" placeholder="Misal: 04A1B2C3 atau tap kartu">
+            </div>
+            <div class="form-group">
+              <label>Siswa Pemilik Kartu</label>
+              <select id="kartuNisn"></select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn-primary" onclick="submitKartu()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span>Simpan Mapping</span></button>
+          </div>
+          <div class="msg" id="kartuMsg"></div>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>UID Kartu</th><th>NISN</th><th>Nama Siswa</th><th></th></tr></thead>
+          <tbody id="kartuTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- ===== JADWAL PULANG (MODERN & MINIMALIS 2026) ===== -->
+      <div id="tab-jadwal" class="tab-panel">
+        <div class="content-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;margin-bottom:20px;">
+          <div>
+            <div style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:#4f46e5;background:#eef2ff;padding:3px 10px;border-radius:20px;margin-bottom:6px;border:1px solid #c7d2fe;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span>Monitoring IoT Jam Pulang</span>
+            </div>
+            <h2 style="font-size:22px;font-weight:800;color:#0f172a;margin:0 0 4px 0;">Jam Pulang Kelas</h2>
+            <p style="font-size:13.5px;color:#64748b;margin:0;">Konfigurasi kepulangan resmi untuk 3 kelas binaan SMKN 1 Sumedang.</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <button type="button" class="btn-preset-minimal" onclick="terapkanPresetStandarJadwal()">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              <span>Terapkan Standar SMKN 1 Sumedang (15:30 / 11:45)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3 HERO CLASS CARDS (MODERN MINIMALIST GRID) -->
+        <div class="jadwal-cards-grid" id="jadwalCardsGrid">
+          <!-- Populated dynamically by renderJadwalTable -->
+        </div>
+
+        <!-- QUICK EDIT FORM CARD (CLEAN & COMPACT) -->
+        <div class="admin-form-card" style="margin-top:16px;border-radius:16px;border:1px solid #e2e8f0;background:#ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.03);padding:18px 22px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:28px;height:28px;border-radius:8px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#334155;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              </div>
+              <h3 style="font-size:14px;font-weight:700;color:#0f172a;margin:0;">Penyetelan Cepat Jadwal Kepulangan</h3>
+            </div>
+            <span style="font-size:11.5px;color:#64748b;font-weight:600;">Sinkronisasi Realtime IoT Gateway</span>
+          </div>
+          <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr;gap:14px;">
+            <div class="form-group" style="margin:0;">
+              <label style="font-size:12px;font-weight:700;color:#475569;margin-bottom:6px;">Kelas Resmi</label>
+              <select id="jadwalKelas" style="font-size:13px;font-weight:600;padding:9px 12px;border-radius:10px;border:1.5px solid #e2e8f0;background:#f8fafc;width:100%;">
+                <option value="XII RPL 1">XII RPL 1</option>
+                <option value="XII RPL 2" selected>XII RPL 2</option>
+                <option value="XII TKJ 1">XII TKJ 1</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label style="font-size:12px;font-weight:700;color:#475569;margin-bottom:6px;">Hari Pembelajaran</label>
+              <select id="jadwalHari" onchange="gantiHariJadwalPulang()" style="font-size:13px;font-weight:600;padding:9px 12px;border-radius:10px;border:1.5px solid #e2e8f0;background:#f8fafc;width:100%;">
+                <option value="semua" selected>Semua Hari (Senin - Jumat)</option>
+                <option value="senin_kamis">Senin s/d Kamis (Reguler)</option>
+                <option value="senin">Senin</option>
+                <option value="selasa">Selasa</option>
+                <option value="rabu">Rabu</option>
+                <option value="kamis">Kamis</option>
+                <option value="jumat">Jumat (KBM Khusus)</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label style="font-size:12px;font-weight:700;color:#475569;margin-bottom:6px;">Jam Pulang (WIB)</label>
+              <input type="time" id="jadwalJam" value="15:30" style="font-size:13px;font-weight:700;font-family:var(--font-mono);padding:9px 12px;border-radius:10px;border:1.5px solid #e2e8f0;background:#f8fafc;width:100%;">
+            </div>
+          </div>
+          <div class="form-actions" style="margin-top:14px;display:flex;justify-content:flex-end;gap:8px;">
+            <button class="btn-primary" onclick="submitJadwal()" style="font-size:12.5px;padding:8px 18px;border-radius:9px;display:inline-flex;align-items:center;gap:6px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+              <span>Simpan Jam Pulang</span>
+            </button>
+          </div>
+          <div class="msg" id="jadwalMsg"></div>
+        </div>
+
+        <!-- RINGKASAN MATRIKS TABEL (3 BARIS MINIMALIS) -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:24px 0 12px 0;">
+          <h3 style="font-size:14.5px;font-weight:800;color:#0f172a;margin:0;display:flex;align-items:center;gap:8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+            <span>Matriks Ringkasan Jam Kepulangan</span>
+          </h3>
+          <span style="font-size:12px;color:#64748b;font-weight:600;" id="statTotalJadwal">3 Kelas Resmi Terkonfigurasi</span>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width:22%;">Kelas Resmi</th>
+              <th style="width:24%;">Senin – Kamis (Reguler)</th>
+              <th style="width:22%;">Jumat (Singkat)</th>
+              <th style="width:20%;">Rincian Harian</th>
+              <th style="width:12%;text-align:right;">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="jadwalTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- ===== JADWAL PELAJARAN ===== -->
+      <div id="tab-pelajaran" class="tab-panel">
+        <div class="content-header">
+          <h2>Jadwal Pembelajaran</h2>
+          <p>Atur jadwal mata pelajaran dan jam KBM kelas.</p>
+        </div>
+        <div class="admin-form-card">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Kelas</label>
+              <select id="pelajaranKelas"></select>
+            </div>
+            <div class="form-group">
+              <label>Hari Pembelajaran</label>
+              <select id="pelajaranHari" onchange="gantiHariPelajaranAdmin()">
+                <option value="senin" selected>Senin</option>
+                <option value="selasa">Selasa</option>
+                <option value="rabu">Rabu</option>
+                <option value="kamis">Kamis</option>
+                <option value="jumat">Jumat</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Jam Ke-</label>
+              <input type="number" id="pelajaranJamKe" min="1" max="12" placeholder="1">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Mata Pelajaran</label>
+              <input type="text" id="pelajaranMapel" placeholder="Nama mata pelajaran">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Mulai</label>
+              <input type="time" id="pelajaranMulai">
+            </div>
+            <div class="form-group">
+              <label>Selesai</label>
+              <input type="time" id="pelajaranSelesai">
+            </div>
+          </div>
+          <div class="form-actions" style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn-primary" onclick="submitPelajaran()">+ Tambah Jam Pelajaran</button>
+            <button type="button" class="btn-primary" onclick="terapkanMasterJadwalResmi()" style="background:#059669; border-color:#059669;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg><span>Terapkan Master Jadwal Resmi</span>
+            </button>
+          </div>
+          <div class="msg" id="pelajaranMsg"></div>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>Jam Ke-</th><th>Mata Pelajaran</th><th>Mulai</th><th>Selesai</th><th></th></tr></thead>
+          <tbody id="pelajaranTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- ===== DATA GURU & KELOLA AKUN ===== -->
+      <div id="tab-guru" class="tab-panel">
+        <div class="content-header">
+          <h2>Data Guru & Kelola Akun</h2>
+          <p>Daftar resmi dewan guru SMKN 1 Sumedang, sinkronisasi status Gmail & NIP terverifikasi, dan manajemen akun pengguna.</p>
+        </div>
+        <div class="admin-form-card">
+          <h3 id="guruFormTitle">Tambah Guru</h3>
+          <input type="hidden" id="guruEditingKey">
+          <div class="form-row">
+            <div class="form-group">
+              <label>NIP / Kode Guru</label>
+              <input type="text" id="guruNip" placeholder="Contoh: 198109012009022003">
+            </div>
+            <div class="form-group">
+              <label>Nama Lengkap Guru</label>
+              <input type="text" id="guruNama" placeholder="Nama lengkap & gelar">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Mata Pelajaran yang Diampu</label>
+              <input type="text" id="guruMapel" placeholder="Contoh: Pemrograman Web & Perangkat Bergerak">
+            </div>
+            <div class="form-group">
+              <label>Email Guru (Gmail Opsional)</label>
+              <input type="email" id="guruEmail" placeholder="guru@gmail.com">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Penugasan Wali Kelas</label>
+              <select id="guruWalasKelas">
+                <option value="">Bukan Wali Kelas (Guru Pengajar)</option>
+                <option value="XII RPL 1">Wali Kelas XII RPL 1</option>
+                <option value="XII RPL 2">Wali Kelas XII RPL 2</option>
+                <option value="XII TKJ 1">Wali Kelas XII TKJ 1</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn-primary" id="guruSubmitBtn" onclick="submitGuru()">+ Tambah Guru</button>
+            <button class="btn-secondary hidden" id="guruCancelBtn" onclick="resetFormGuru()">Batal</button>
+          </div>
+          <div class="msg" id="guruMsg"></div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:24px 0 12px 0;">
+          <h3 style="font-size:15px;font-weight:800;color:var(--text);margin:0;">Data Dewan Guru Resmi</h3>
+          <span style="font-size:12px;color:var(--text-muted);font-weight:600;" id="statTotalGuru"></span>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>NIP</th><th>Nama Guru</th><th>Mata Pelajaran / Penugasan</th><th>Email</th><th></th></tr></thead>
+          <tbody id="guruTableBody"></tbody>
+        </table>
+
+        <div style="margin-top:36px;padding-top:20px;border-top:1.5px dashed #e2e8f0;">
+          <h3 style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:4px;">Semua Pengguna yang Sudah Login</h3>
+          <p style="font-size:12px;color:#64748b;margin-bottom:12px;">Daftar akun Google yang pernah masuk ke sistem dan status penautan NISN / NIP.</p>
+          <table class="data-table">
+            <thead><tr><th>Nama</th><th>Email</th><th>Role</th><th>Status NISN / NIP</th><th>Aksi</th></tr></thead>
+            <tbody id="userTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== PANEL ACC KENDALA GURU (BELAJAR MANDIRI - PRD Bab 4.2 & 7.4) ===== -->
+      <div id="tab-kendala" class="tab-panel">
+        <div class="content-header">
+          <h2>Kendala Guru & Belajar Mandiri</h2>
+          <p>Persetujuan laporan kendala mengajar guru untuk mengaktifkan status belajar mandiri kelas.</p>
+        </div>
+
+        <!-- Kontrol Cepat Status Operasional 3 Kelas -->
+        <div class="admin-form-card" style="margin-bottom:20px;background:#f8fafc;">
+          <h3 style="font-size:15px;font-weight:800;color:#0f172a;margin-bottom:10px;">Kontrol Langsung Status 3 Kelas Pilot</h3>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));gap:14px;" id="boxControlStatusKelas">
+            <!-- Disuntikkan via JS -->
+          </div>
+        </div>
+
+        <div class="filter-bar">
+          <button class="filter-btn active" data-filter-kendala="pending" onclick="setFilterKendalaAdmin('pending', this)">Menunggu konfirmasi</button>
+          <button class="filter-btn" data-filter-kendala="approved" onclick="setFilterKendalaAdmin('approved', this)">Sudah di-ACC (Belajar Mandiri)</button>
+          <button class="filter-btn" data-filter-kendala="semua" onclick="setFilterKendalaAdmin('semua', this)">Semua Laporan</button>
+        </div>
+
+        <div id="daftarKendalaAdmin">
+          <div id="kendalaGuruAdminContainer" style="display:none;"></div>
+          <div class="empty-state"><div class="empty-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><p>Memuat laporan kendala guru...</p></div>
+        </div>
+      </div>
+
+      <!-- ===== PUSAT PENGAWASAN 3 KELAS TERPADU (PRD Bab 7.4) ===== -->
+      <div id="tab-monitoring3kelas" class="tab-panel">
+        <div class="content-header">
+          <h2>Kehadiran Siswa & Guru</h2>
+          <p>Pantau status kehadiran siswa dan guru secara langsung.</p>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:16px;margin-bottom:24px;" id="cards3KelasMonitoring">
+          <!-- Card 3 Kelas Disuntikkan via JS -->
+        </div>
+
+        <div class="admin-form-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+            <h3 style="font-size:15px;font-weight:800;color:#1e293b;">Matriks Live Kehadiran 3 Kelas Hari Ini</h3>
+            <button class="btn-secondary" onclick="muatMonitoring3Kelas()" style="padding:6px 14px;font-size:12.5px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg><span>Refresh Telemetri</span></button>
+          </div>
+          <div id="tabelRingkasan3Kelas" style="overflow-x:auto;">
+            <!-- Tabel komparasi -->
+          </div>
+        </div>
+
+        <div class="admin-form-card" style="margin-top:20px;" id="cardMonitoringGuru">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <h3 style="font-size:15px;font-weight:800;color:#1e293b;margin:0;">Kehadiran Dewan Guru Hari Ini</h3>
+              <span id="badgeGuruMonitoring" style="font-size:11.5px;font-weight:700;color:#0284c7;background:#e0f2fe;padding:3px 10px;border-radius:999px;">Memuat status guru...</span>
+            </div>
+            <button class="btn-secondary" onclick="muatMonitoring3Kelas()" style="padding:6px 14px;font-size:12.5px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg><span>Refresh Guru</span></button>
+          </div>
+          <div id="monitoringGuruContainer" style="overflow-x:auto;">
+            <!-- Tabel / Grid Kehadiran Guru Disuntikkan via JS -->
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /admin-content -->
+  </div><!-- /admin-layout -->
+</div><!-- /admin-wrap -->
+
+<!-- MODAL CHAT PERIJINAN -->
+<div class="chat-modal-overlay" id="modalChat">
+  <div class="chat-modal-box">
+    <div class="chat-modal-header">
+      <span id="modalChatJudul">Chat Perijinan</span>
+      <button onclick="tutupModalChat()" class="btn-secondary" style="padding:6px 14px;font-size:13px;border:none;">Tutup</button>
+    </div>
+    <div class="chat-messages" id="chatBubbleContainer"></div>
+    <div class="chat-input-row">
+      <input type="text" id="chatInputPesan" placeholder="Tulis balasan..." onkeydown="if(event.key==='Enter') kirimPesanChat()">
+      <button class="btn-send" onclick="kirimPesanChat()">Kirim</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PREVIEW BUKTI IZIN / KENDALA -->
+<div class="modal-preview" id="modalBuktiIzin" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.65);backdrop-filter:blur(4px);z-index:9999;align-items:center;justify-content:center;padding:16px;">
+  <div class="modal-preview-content" style="background:#fff;border-radius:20px;max-width:580px;width:100%;padding:24px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);max-height:90vh;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <h3 style="font-size:16px;font-weight:800;color:#1e293b;margin:0;" id="modalBuktiTitle">Bukti Lampiran Izin / Kendala</h3>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button id="btnBukaDiTabBaru" onclick="if(typeof bukaLampiranAktifDiTabBaru==='function')bukaLampiranAktifDiTabBaru();" style="display:none;border:none;background:#f1f5f9;color:#475569;padding:6px 10px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;align-items:center;gap:4px;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          Tab Baru
+        </button>
+        <button onclick="if(typeof tutupModalBukti==='function')tutupModalBukti();else document.getElementById('modalBuktiIzin').style.display='none';" style="border:none;background:#f8fafc;width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:#64748b;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+    <div id="modalBuktiBody" style="text-align:center;max-height:480px;overflow-y:auto;">
+      <img id="modalBuktiImg" src="" alt="Bukti" style="max-width:100%;border-radius:12px;display:none;margin:0 auto;">
+      <div id="modalBuktiText" style="color:#64748b;font-size:14px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDIT SISWA LANGSUNG -->
+<div class="modal-preview" id="modalEditSiswaAdmin" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.65);backdrop-filter:blur(5px);z-index:99999;align-items:center;justify-content:center;padding:16px;">
+  <div class="modal-preview-content" style="background:#fff;border-radius:20px;max-width:480px;width:100%;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);border:1px solid #e2e8f0;overflow:hidden;">
+    <div style="padding:18px 22px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;background:#f8fafc;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:36px;height:36px;border-radius:10px;background:#eff6ff;color:#2563eb;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+        </div>
+        <div>
+          <h3 style="margin:0;font-size:15px;font-weight:800;color:#0f172a;">Edit Data Siswa</h3>
+          <p style="margin:2px 0 0 0;font-size:11.5px;color:#64748b;">Perbarui informasi siswa SMKN 1 Sumedang</p>
+        </div>
+      </div>
+      <button type="button" onclick="tutupModalEditSiswa()" style="background:transparent;border:none;font-size:18px;color:#94a3b8;cursor:pointer;padding:4px 8px;border-radius:8px;line-height:1;" onmouseover="this.style.color='#0f172a'" onmouseout="this.style.color='#94a3b8'">✕</button>
+    </div>
+
+    <div style="padding:22px;display:flex;flex-direction:column;gap:14px;">
+      <input type="hidden" id="modalEditSiswaKey">
+      
+      <div>
+        <label style="display:block;font-size:11.5px;font-weight:700;color:#475569;margin-bottom:5px;">NISN (Nomor Induk Siswa Nasional)</label>
+        <input type="text" id="modalEditSiswaNisn" disabled style="width:100%;padding:9px 12px;border-radius:10px;border:1px solid #cbd5e1;background:#f1f5f9;color:#64748b;font-weight:700;font-family:monospace;font-size:13px;box-sizing:border-box;">
+      </div>
+
+      <div>
+        <label style="display:block;font-size:11.5px;font-weight:700;color:#475569;margin-bottom:5px;">Nama Lengkap</label>
+        <input type="text" id="modalEditSiswaNama" placeholder="Nama lengkap siswa" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-weight:600;font-size:13px;color:#0f172a;box-sizing:border-box;">
+      </div>
+
+      <div>
+        <label style="display:block;font-size:11.5px;font-weight:700;color:#475569;margin-bottom:5px;">Rombel / Kelas Resmi</label>
+        <select id="modalEditSiswaKelas" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-weight:700;font-size:13px;color:#0f172a;background:#ffffff;box-sizing:border-box;">
+          <option value="XII RPL 1">XII RPL 1</option>
+          <option value="XII RPL 2">XII RPL 2</option>
+          <option value="XII TKJ 1">XII TKJ 1</option>
+        </select>
+      </div>
+
+      <div>
+        <label style="display:block;font-size:11.5px;font-weight:700;color:#475569;margin-bottom:5px;">Email Gmail (Opsional)</label>
+        <input type="email" id="modalEditSiswaEmail" placeholder="email@gmail.com" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:13px;color:#0f172a;box-sizing:border-box;">
+      </div>
+
+      <div id="modalEditSiswaMsg" style="display:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;"></div>
+    </div>
+
+    <div style="padding:14px 22px;background:#f8fafc;border-top:1px solid #f1f5f9;display:flex;align-items:center;justify-content:flex-end;gap:10px;">
+      <button type="button" onclick="tutupModalEditSiswa()" style="padding:9px 16px;border-radius:10px;border:1px solid #cbd5e1;background:#ffffff;color:#475569;font-weight:700;font-size:13px;cursor:pointer;">Batal</button>
+      <button type="button" id="btnSimpanModalEditSiswa" onclick="simpanModalEditSiswa()" style="padding:9px 18px;border-radius:10px;border:none;background:#2563eb;color:#ffffff;font-weight:800;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 4px rgba(37,99,235,0.25);">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        <span>Simpan Perubahan</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDIT GURU LANGSUNG -->
+<div class="modal-preview" id="modalEditGuruAdmin" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:99999;backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px;">
+  <div class="modal-preview-content" style="background:#fff;border-radius:20px;max-width:480px;width:100%;box-shadow:0 20px 40px -10px rgba(0,0,0,0.25);overflow:hidden;border:1px solid #e2e8f0;animation:modalZoomIn 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);">
+    <div style="padding:16px 22px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;background:#f8fafc;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:34px;height:34px;border-radius:10px;background:#e0f2fe;display:flex;align-items:center;justify-content:center;color:#0284c7;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div>
+          <h3 style="font-size:15px;font-weight:800;color:#0f172a;margin:0;">Edit Data Guru</h3>
+          <p style="font-size:11.5px;color:#64748b;margin:0;">Perbarui data dewan guru SMKN 1 Sumedang</p>
+        </div>
+      </div>
+      <button type="button" onclick="tutupModalEditGuru()" style="background:transparent;border:none;font-size:18px;color:#94a3b8;cursor:pointer;padding:4px 8px;border-radius:6px;transition:0.15s;" onmouseover="this.style.background='#f1f5f9';this.style.color='#0f172a'" onmouseout="this.style.background='transparent';this.style.color='#94a3b8'">&times;</button>
+    </div>
+
+    <div style="padding:22px;display:flex;flex-direction:column;gap:14px;">
+      <input type="hidden" id="modalEditGuruKey">
+      <div>
+        <label style="display:block;font-size:11.5px;font-weight:700;color:#475569;margin-bottom:5px;">NIP / Kode Guru</label>
+        <input type="text" id="modalEditGuruNip" disabled style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#64748b;font-family:var(--font-mono, monospace);font-weight:700;font-size:13px;box-sizing:border-box;">
+      </div>
+
+      <div>
+        <label style="display:block;font-size:11.5px;font-weight:700;color:#475569;margin-bottom:5px;">Nama Lengkap Guru</label>
+        <input type="text" id="modalEditGuruNama" placeholder="Nama lengkap & gelar" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:13px;color:#0f172a;box-sizing:border-box;">
+      </div>
+
+      <div>
+        <label style="display:block;font-size:11.5px;font-weight:700;color:#475569;margin-bottom:5px;">Mata Pelajaran yang Diampu</label>
+        <input type="text" id="modalEditGuruMapel" placeholder="Mata pelajaran" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:13px;color:#0f172a;box-sizing:border-box;">
+      </div>
+
+      <div>
+        <label style="display:block;font-size:11.5px;font-weight:700;color:#475569;margin-bottom:5px;">Penugasan Wali Kelas</label>
+        <select id="modalEditGuruWalas" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:13px;color:#0f172a;background:#fff;box-sizing:border-box;">
+          <option value="">Bukan Wali Kelas (Guru Pengajar)</option>
+          <option value="XII RPL 1">Wali Kelas XII RPL 1</option>
+          <option value="XII RPL 2">Wali Kelas XII RPL 2</option>
+          <option value="XII TKJ 1">Wali Kelas XII TKJ 1</option>
+        </select>
+      </div>
+
+      <div>
+        <label style="display:block;font-size:11.5px;font-weight:700;color:#475569;margin-bottom:5px;">Email Gmail (Terverifikasi / Ditautkan)</label>
+        <input type="email" id="modalEditGuruEmail" placeholder="guru@gmail.com" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:13px;color:#0f172a;box-sizing:border-box;">
+      </div>
+
+      <div id="modalEditGuruMsg" style="display:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;"></div>
+    </div>
+
+    <div style="padding:14px 22px;background:#f8fafc;border-top:1px solid #f1f5f9;display:flex;align-items:center;justify-content:flex-end;gap:10px;">
+      <button type="button" onclick="tutupModalEditGuru()" style="padding:9px 16px;border-radius:10px;border:1px solid #cbd5e1;background:#ffffff;color:#475569;font-weight:700;font-size:13px;cursor:pointer;">Batal</button>
+      <button type="button" id="btnSimpanModalEditGuru" onclick="simpanModalEditGuru()" style="padding:9px 18px;border-radius:10px;border:none;background:#2563eb;color:#ffffff;font-weight:800;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 4px rgba(37,99,235,0.25);">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        <span>Simpan Perubahan</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDIT JAM PULANG KELAS (MODERN & MINIMALIS) -->
+<div class="modal-preview" id="modalEditJadwalPulang" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.6);z-index:99999;backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:16px;">
+  <div class="modal-preview-content" style="background:#fff;border-radius:20px;max-width:480px;width:100%;box-shadow:0 24px 48px -12px rgba(15,23,42,0.25);overflow:hidden;border:1px solid #e2e8f0;animation:modalZoomIn 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);">
+    <div style="padding:16px 22px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;background:#f8fafc;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:36px;height:36px;border-radius:10px;background:#e0e7ff;display:flex;align-items:center;justify-content:center;color:#4f46e5;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div>
+          <h3 style="font-size:15px;font-weight:800;color:#0f172a;margin:0;" id="modalEditJadwalTitle">Atur Jam Pulang</h3>
+          <p style="font-size:11.5px;color:#64748b;margin:0;" id="modalEditJadwalSub">Konfigurasi jadwal kepulangan resmi kelas</p>
+        </div>
+      </div>
+      <button type="button" onclick="tutupModalEditJadwal()" style="background:transparent;border:none;font-size:20px;color:#94a3b8;cursor:pointer;padding:4px 8px;border-radius:6px;transition:0.15s;" onmouseover="this.style.background='#f1f5f9';this.style.color='#0f172a'" onmouseout="this.style.background='transparent';this.style.color='#94a3b8'">&times;</button>
+    </div>
+
+    <div style="padding:22px;display:flex;flex-direction:column;gap:14px;">
+      <div>
+        <label style="display:block;font-size:11.5px;font-weight:700;color:#475569;margin-bottom:5px;">Kelas</label>
+        <input type="text" id="modalEditJadwalKelas" disabled style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#1e293b;font-weight:800;font-size:13.5px;box-sizing:border-box;">
+      </div>
+
+      <!-- Single day container (if hari is passed) -->
+      <div id="modalEditJadwalSingleDayContainer" style="display:none;">
+        <div style="margin-bottom:12px;">
+          <label style="display:block;font-size:11.5px;font-weight:700;color:#475569;margin-bottom:5px;">Hari Pembelajaran</label>
+          <input type="text" id="modalEditJadwalHari" disabled style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#64748b;font-weight:700;font-size:13px;box-sizing:border-box;text-transform:capitalize;">
+        </div>
+        <div>
+          <label style="display:block;font-size:11.5px;font-weight:700;color:#475569;margin-bottom:5px;">Jam Pulang Resmi (WIB)</label>
+          <input type="time" id="modalEditJadwalJam" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:14px;font-weight:700;color:#0f172a;box-sizing:border-box;font-family:var(--font-mono);">
+        </div>
+      </div>
+
+      <!-- Multi day / Class mode container (Modern & Minimalis) -->
+      <div id="modalEditJadwalMultiDayContainer">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;">
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:700;color:#475569;margin-bottom:5px;">Senin – Kamis (Reguler)</label>
+            <input type="time" id="modalEditJadwalJamReguler" value="15:30" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #cbd5e1;font-size:13.5px;font-weight:700;color:#0f172a;box-sizing:border-box;font-family:var(--font-mono);">
+          </div>
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:700;color:#0284c7;margin-bottom:5px;">Jumat (KBM Khusus)</label>
+            <input type="time" id="modalEditJadwalJamJumat" value="11:45" style="width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid #bae6fd;background:#f0f9ff;font-size:13.5px;font-weight:700;color:#0369a1;box-sizing:border-box;font-family:var(--font-mono);">
+          </div>
+        </div>
+
+        <details style="margin-top:6px;border:1px solid #e2e8f0;border-radius:10px;padding:8px 12px;background:#f8fafc;">
+          <summary style="font-size:11.5px;font-weight:700;color:#475569;cursor:pointer;outline:none;">Sesuaikan Jam Spesifik per Hari (Opsional)</summary>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+            <div>
+              <span style="font-size:11px;font-weight:600;color:#64748b;">Senin:</span>
+              <input type="time" id="modalEditHariSenin" value="15:30" style="width:100%;padding:6px 8px;border-radius:8px;border:1px solid #cbd5e1;font-size:12px;box-sizing:border-box;">
+            </div>
+            <div>
+              <span style="font-size:11px;font-weight:600;color:#64748b;">Selasa:</span>
+              <input type="time" id="modalEditHariSelasa" value="15:30" style="width:100%;padding:6px 8px;border-radius:8px;border:1px solid #cbd5e1;font-size:12px;box-sizing:border-box;">
+            </div>
+            <div>
+              <span style="font-size:11px;font-weight:600;color:#64748b;">Rabu:</span>
+              <input type="time" id="modalEditHariRabu" value="15:30" style="width:100%;padding:6px 8px;border-radius:8px;border:1px solid #cbd5e1;font-size:12px;box-sizing:border-box;">
+            </div>
+            <div>
+              <span style="font-size:11px;font-weight:600;color:#64748b;">Kamis:</span>
+              <input type="time" id="modalEditHariKamis" value="15:30" style="width:100%;padding:6px 8px;border-radius:8px;border:1px solid #cbd5e1;font-size:12px;box-sizing:border-box;">
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div id="modalEditJadwalMsg" style="display:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;"></div>
+    </div>
+
+    <div style="padding:14px 22px;background:#f8fafc;border-top:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <button type="button" onclick="setPresetStandarDiModal()" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;font-size:12px;font-weight:700;padding:8px 12px;border-radius:9px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <span>Standar SMKN 1</span>
+      </button>
+      <div style="display:flex;gap:8px;">
+        <button type="button" onclick="tutupModalEditJadwal()" style="padding:8px 15px;border-radius:9px;border:1px solid #cbd5e1;background:#ffffff;color:#475569;font-weight:700;font-size:12.5px;cursor:pointer;">Batal</button>
+        <button type="button" id="btnSimpanModalEditJadwal" onclick="simpanModalEditJadwal()" style="padding:8px 18px;border-radius:9px;border:none;background:#4f46e5;color:#ffffff;font-weight:800;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 5px rgba(79,70,229,0.25);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          <span>Simpan Perubahan</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- GSAP & Lenis CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.1.18/dist/lenis.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<script src="assets/firebase-config.js?v=20261029_07"></script>
+<script src="assets/jadwal-util.js?v=20261001_10"></script>
+<script src="assets/auth.js?v=20261001_10"></script>
+<script src="assets/ceklis-popup.js?v=20261029_08"></script>
+<script src="assets/perijinan.js?v=20261029_09"></script>
+<script src="assets/admin.js?v=20261104_1400"></script>
+<script src="assets/chat-hub.js?v=20261029_06"></script>
+<script src="assets/profile-modal.js?v=20261001_10"></script>
+
+<script>
+  // Lenis Smooth Scroll Synchronized with GSAP Ticker
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let lenis = null;
+  if (!prefersReducedMotion && window.Lenis) {
+    try {
+      lenis = new Lenis({
+        duration: 1.2,
+        smoothWheel: true,
+        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t))
+      });
+      if (window.gsap) {
+        gsap.ticker.add((time) => {
+          lenis.raf(time * 1000);
+        });
+        gsap.ticker.lagSmoothing(0);
+      } else {
+        function raf(time) {
+          lenis.raf(time);
+          requestAnimationFrame(raf);
+        }
+        requestAnimationFrame(raf);
+      }
+    } catch (e) {
+      console.warn('Lenis init:', e);
+    }
+  }
+
+  // Dismiss Glass Loader and Run GSAP Entrance Animation
+  function dismissGlassLoader() {
+    const loader = document.getElementById('glassLoader');
+    if (!loader) return;
+    loader.style.pointerEvents = 'none';
+    if (window.gsap) {
+      gsap.to(loader, {
+        opacity: 0,
+        duration: 0.6,
+        ease: 'power2.out',
+        onComplete: () => {
+          loader.style.display = 'none';
+        }
+      });
+      if (!prefersReducedMotion) {
+        gsap.from('.admin-appbar, .admin-sidebar, .admin-section-header, .admin-stat-card, .admin-table-card, .admin-form-card', {
+          opacity: 0,
+          y: 20,
+          duration: 0.7,
+          stagger: 0.06,
+          ease: 'power2.out',
+          clearProps: 'all'
+        });
+      }
+    } else {
+      loader.classList.add('fade-out');
+      setTimeout(() => { loader.style.display = 'none'; }, 600);
+    }
+  }
+
+  window.dismissGlassLoader = dismissGlassLoader;
+  window.addEventListener('load', () => {
+    setTimeout(dismissGlassLoader, 400);
+  });
+  // Fallback safety timeout
+  setTimeout(dismissGlassLoader, 2500);
+</script>
+</body>
+</html>

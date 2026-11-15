@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Presensi Live — Pantau Kelas</title>
+<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/admin.css">
+<link rel="stylesheet" href="assets/presensi-live.css">
+<style>
+  .container { max-width: 960px; }
+  .header-brand {
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+    margin-bottom: 4px;
+  }
+  .jam-aktif-banner {
+    background: linear-gradient(135deg, #eff6ff, #dbeafe);
+    border: 1px solid #bfdbfe;
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin: 16px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14.5px;
+    color: #1e40af;
+    font-weight: 600;
+  }
+  .jam-aktif-banner.kosong {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+    color: #64748b;
+    font-weight: 400;
+  }
+  .jam-aktif-banner .icon { font-size: 22px; flex-shrink: 0; }
+  .jam-aktif-banner .sub { font-size: 12.5px; font-weight: 400; color: #3b82f6; margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="container admin-container">
+  <div class="header">
+    <div>
+      <div class="header-brand">MONITORING PRESENSI RFID — AKSES TERBUKA (SISWA, GURU & PENGUNJUNG)</div>
+      <h1><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.2 19.1 19.1"/></svg>Presensi Live</h1>
+    </div>
+    <div class="header-actions">
+      <div class="live-telemetri-pill">
+        <span class="live-dot-pulse"></span>
+        <span id="clockLiveWib">--:--:-- WIB</span>
+      </div>
+      <button id="btnFullscreen" type="button" class="btn-fullscreen-toggle" onclick="toggleFullscreenLive()" title="Mode Layar Penuh (TV Monitor)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:5px;"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        <span>Layar Penuh</span>
+      </button>
+      <a href="dashboard.html" class="btn-secondary-link"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Dashboard Siswa</a>
+      <a href="admin.html" id="linkAdminLive" style="display:none;"></a>
+      <button id="logoutBtn" class="logout" style="display:none;" onclick="window.location.href='index.html'">Keluar</button>
+    </div>
+  </div>
+
+  <!-- Pilih Kelas -->
+  <div class="form-row" style="margin-bottom: 0;">
+    <div style="max-width:200px;">
+      <label for="kelasSelect" style="display:flex;align-items:center;gap:5px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Kelas</label>
+      <select id="kelasSelect"></select>
+    </div>
+  </div>
+
+  <!-- Info Jam Pelajaran Aktif -->
+  <div class="jam-aktif-banner kosong" id="infoJam">
+    <span class="icon" style="display:inline-flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+    <div><div>Memuat jadwal pelajaran...</div></div>
+  </div>
+
+  <!-- Ringkasan Angka -->
+  <div class="ringkasan">
+    <div class="kartu-ringkasan sudah">
+      <span class="angka" id="jumlahSudah">0</span>
+      <span class="label">Sudah Scan Kartu</span>
+    </div>
+    <div class="kartu-ringkasan belum">
+      <span class="angka" id="jumlahBelum">0</span>
+      <span class="label">Tanpa Keterangan</span>
+    </div>
+  </div>
+
+  <!-- Grid: Sudah Absen -->
+  <h2 style="margin-bottom:12px;"><span style="color:#10b981;">●</span> Sudah Absen Jam Ini</h2>
+  <div id="daftarSudah" class="siswa-grid"></div>
+
+  <!-- Grid: Terlambat -->
+  <h2 style="margin-bottom:12px;"><span style="color:#ef4444;">●</span> Tanpa Keterangan</h2>
+  <div id="daftarBelum" class="siswa-grid"></div>
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="assets/firebase-config.js?v=20261029_07"></script>
+<script src="assets/jadwal-util.js?v=20261001_9"></script>
+<script src="assets/presensi-live.js?v=20261029_07"></script>
+<script>
+function toggleFullscreenLive() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+function updateClockLive() {
+  const el = document.getElementById('clockLiveWib');
+  if (el) {
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const wib = new Date(utc + (3600000 * 7));
+    const pad = n => String(n).padStart(2, '0');
+    el.textContent = pad(wib.getHours()) + ':' + pad(wib.getMinutes()) + ':' + pad(wib.getSeconds()) + ' WIB';
+  }
+}
+setInterval(updateClockLive, 1000);
+updateClockLive();
+</script>
+</body>
+</html>
